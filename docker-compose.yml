@@ -1,0 +1,18 @@
+services:
+  capture:
+    build: ./capture
+    restart: unless-stopped
+    volumes:
+      - ./config.yaml:/config/config.yaml:ro
+      - images:/data/images
+
+  web:
+    build: ./web
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - images:/data/images:ro
+
+volumes:
+  images:

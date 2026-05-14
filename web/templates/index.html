@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Denver Sky Timelapse</title>
+<style>
+  body { margin: 0; background: #0b0d12; color: #e6e9ef; font-family: system-ui, sans-serif; }
+  header { padding: 0.6rem 1rem; display: flex; gap: 1rem; align-items: center; border-bottom: 1px solid #222; }
+  header a { color: #8ab4ff; text-decoration: none; }
+  header a:hover { text-decoration: underline; }
+  .stage { display: flex; justify-content: center; align-items: center; padding: 1rem; }
+  .stage img { max-width: 100%; max-height: 78vh; box-shadow: 0 0 20px #000; }
+  .controls { display: flex; gap: 0.75rem; align-items: center; padding: 0 1rem 1rem; flex-wrap: wrap; }
+  input[type=range] { flex: 1; min-width: 200px; }
+  button { background: #1f2630; color: #e6e9ef; border: 1px solid #333; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; }
+  button:hover { background: #2a3340; }
+  .ts { font-variant-numeric: tabular-nums; min-width: 18ch; }
+  label { display: flex; align-items: center; gap: 0.4rem; }
+</style>
+</head>
+<body>
+<header>
+  <strong>Denver Sky</strong>
+  <a href="/">Live</a>
+  <a href="/browse">Browse</a>
+  <a id="saveLink" href="/save">Save MP4</a>
+</header>
+<div class="stage"><img id="frame" alt="sky"></div>
+<div class="controls">
+  <button id="playBtn">Pause</button>
+  <span class="ts" id="tsLabel">--</span>
+  <input type="range" id="seek" min="0" max="0" value="0">
+  <label>FPS <input type="number" id="fps" value="10" min="1" max="60" style="width: 4em;"></label>
+</div>
+<script>
+let frames = [];
+let idx = 0;
+let playing = true;
+let timer = null;
+
+const img = document.getElementById('frame');
+const seek = document.getElementById('seek');
+const tsLabel = document.getElementById('tsLabel');
+const playBtn = document.getElementById('playBtn');
+const fpsInput = document.getElementById('fps');
+const saveLink = document.getElementById('saveLink');
+
+async function loadFrames() {
+  const r = await fetch('/api/frames');
+  const data = await r.json();
+  const prevLen = frames.length;
+  frames = data;
+  seek.max = Math.max(0, frames.length - 1);
+  if (prevLen === 0 && frames.length) idx = frames.length - 1;
+  updateSaveLink();
+}
+
+function updateSaveLink() {
+  const fps = parseInt(fpsInput.value, 10) || 10;
+  saveLink.href = `/save?fps=${fps}`;
+}
+
+function show(i) {
+  if (!frames.length) return;
+  idx = Math.max(0, Math.min(frames.length - 1, i));
+  const f = frames[idx];
+  img.src = `/image/${f.name}`;
+  tsLabel.textContent = f.ts.replace('T', ' ');
+  seek.value = idx;
+}
+
+function tick() {
+  if (!playing || !frames.length) return;
+  if (idx >= frames.length - 1) {
+    idx = 0;
+  } else {
+    idx++;
+  }
+  show(idx);
+}
+
+function restartTimer() {
+  if (timer) clearInterval(timer);
+  const fps = Math.max(1, Math.min(60, parseInt(fpsInput.value, 10) || 10));
+  timer = setInterval(tick, 1000 / fps);
+}
+
+playBtn.addEventListener('click', () => {
+  playing = !playing;
+  playBtn.textContent = playing ? 'Pause' : 'Play';
+});
+
+seek.addEventListener('input', () => {
+  playing = false;
+  playBtn.textContent = 'Play';
+  show(parseInt(seek.value, 10));
+});
+
+fpsInput.addEventListener('change', () => {
+  restartTimer();
+  updateSaveLink();
+});
+
+(async () => {
+  await loadFrames();
+  if (frames.length) show(idx);
+  restartTimer();
+  setInterval(loadFrames, 30000);
+})();
+</script>
+</body>
+</html>
