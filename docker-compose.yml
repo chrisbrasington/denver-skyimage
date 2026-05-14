@@ -5,7 +5,7 @@ services:
     build: ./capture
     restart: unless-stopped
     volumes:
-      - ./config.yaml:/config/config.yaml:ro
+      - ./config.yaml:/config/config.yaml:ro,z
       - images:/data/images
 
   web:
