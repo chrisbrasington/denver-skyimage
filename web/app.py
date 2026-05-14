@@ -42,12 +42,12 @@ def parse_ts(s):
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
-    return TEMPLATES.TemplateResponse("index.html", {"request": request})
+    return TEMPLATES.TemplateResponse(request, "index.html")
 
 
 @app.get("/browse", response_class=HTMLResponse)
 def browse(request: Request):
-    return TEMPLATES.TemplateResponse("browse.html", {"request": request})
+    return TEMPLATES.TemplateResponse(request, "browse.html")
 
 
 @app.get("/api/frames")
