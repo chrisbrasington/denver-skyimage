@@ -6,7 +6,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./config.yaml:/config/config.yaml:ro,z
-      - images:/data/images
+      - ./downloaded_images:/data/images:z
 
   web:
     build: ./web
@@ -14,7 +14,4 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - images:/data/images:ro
-
-volumes:
-  images:
+      - ./downloaded_images:/data/images:ro,z
