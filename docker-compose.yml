@@ -1,3 +1,5 @@
+name: denver-skyimage
+
 services:
   capture:
     build: ./capture
