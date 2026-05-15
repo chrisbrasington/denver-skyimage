@@ -64,6 +64,14 @@
   .camera-switcher button { font-size: 1.1rem; padding: 0.7rem 1.2rem; min-width: 0; opacity: 0.7; }
   .camera-switcher button.active { opacity: 1; background: #2a3b5a; border-color: #8ab4ff; }
   .thumb-tooltip { position: fixed; transform: translate(-50%, calc(-100% - 60px)); background: rgba(20,24,32,0.97); color: #e6e9ef; padding: 0.75rem 1.25rem; border-radius: 8px; font-size: 1.4rem; font-weight: 600; white-space: nowrap; pointer-events: none; z-index: 1000; display: none; border: 2px solid #8ab4ff; box-shadow: 0 4px 18px rgba(0,0,0,0.7); font-variant-numeric: tabular-nums; }
+  .event-dialog { position: absolute; transform: translate(-50%, -100%); background: rgba(20,24,32,0.93); color: #fff; padding: 0.7rem 1.2rem; border-radius: 10px; font-size: 1.3rem; font-weight: 600; max-width: 22rem; border: 2px solid #ffd76a; box-shadow: 0 6px 18px rgba(0,0,0,0.7); pointer-events: none; opacity: 0; animation: eventShow 5s ease-out forwards; z-index: 40; text-align: center; line-height: 1.25; }
+  .event-dialog::after { content: ''; position: absolute; left: 50%; bottom: -10px; transform: translateX(-50%); border: 8px solid transparent; border-top-color: #ffd76a; }
+  @keyframes eventShow {
+    0%   { opacity: 0; transform: translate(-50%, -100%) translateY(12px); }
+    8%   { opacity: 1; transform: translate(-50%, -100%) translateY(0); }
+    70%  { opacity: 1; transform: translate(-50%, -100%) translateY(0); }
+    100% { opacity: 0; transform: translate(-50%, -100%) translateY(-4px); }
+  }
   .thumb-tooltip.show { display: block; }
 </style>
 </head>
@@ -496,6 +504,53 @@ function updateThumbColors() {
   seek.style.setProperty('--thumb-color', frameTimeColor(idx));
 }
 
+let events = [];
+const shownEvents = new Set();
+
+async function loadEvents() {
+  try {
+    const r = await fetch(withCam('/api/events'));
+    events = await r.json();
+  } catch (e) { console.warn('events load failed', e); }
+}
+
+function spawnEventDialog(ev) {
+  const dialog = document.createElement('div');
+  dialog.className = 'event-dialog';
+  dialog.dataset.eventId = ev.id;
+  dialog.textContent = ev.message;
+  const imgRect = img.getBoundingClientRect();
+  const stageRect = stage.getBoundingClientRect();
+  const xpx = imgRect.left - stageRect.left + ev.x_pct * imgRect.width;
+  const ypx = imgRect.top - stageRect.top + ev.y_pct * imgRect.height;
+  dialog.style.left = `${xpx}px`;
+  dialog.style.top = `${ypx - 16}px`;
+  dialog.addEventListener('animationend', () => dialog.remove());
+  stage.appendChild(dialog);
+}
+
+function renderActiveEvents() {
+  if (!events.length || !frames.length) return;
+  const ts = frames[idx].ts;
+  const active = new Set();
+  for (const ev of events) {
+    if (ts >= ev.start_ts && ts <= ev.end_ts) {
+      active.add(ev.id);
+      if (!shownEvents.has(ev.id)) {
+        spawnEventDialog(ev);
+        shownEvents.add(ev.id);
+      }
+    }
+  }
+  for (const id of [...shownEvents]) {
+    if (!active.has(id)) {
+      shownEvents.delete(id);
+      const el = document.querySelector(`.event-dialog[data-event-id="${id}"]`);
+      if (el) el.remove();
+    }
+  }
+}
+
 async function loadSunTimes() {
   try {
     const r = await fetch(withCam('/api/anchors'));
@@ -708,6 +763,7 @@ function show(i) {
   seek.value = idx;
   seek.style.setProperty('--thumb-color', frameTimeColor(idx));
   updateTimeLabel(f.ts);
+  renderActiveEvents();
 }
 
 function findAnchorFor(day, kind) {
@@ -821,10 +877,11 @@ async function buildCameraSwitcher() {
   await buildCameraSwitcher();
   await loadSunTimes();
   await loadFrames();
+  await loadEvents();
   if (TOUCH_MODE && frames.length) applyIdleReset();
   if (frames.length) show(idx);
   restartTimer();
-  setInterval(async () => { await loadSunTimes(); await loadFrames(); }, 30000);
+  setInterval(async () => { await loadSunTimes(); await loadFrames(); await loadEvents(); }, 30000);
 })();
 </script>
 </body>

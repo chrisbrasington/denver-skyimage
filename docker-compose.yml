@@ -17,6 +17,7 @@ services:
     volumes:
       - ./cameras.json:/config/cameras.json:ro,z
       - ./downloaded_images:/data/images:z
+      - ./events:/data/events:z
 
   videogen:
     build: ./videogen

@@ -9,7 +9,25 @@
   header a { color: #8ab4ff; text-decoration: none; }
   header a:hover { text-decoration: underline; }
   .main { display: flex; align-items: stretch; }
-  .stage { flex: 1; display: flex; justify-content: center; align-items: center; padding: 1rem; background: #0b0d12; min-width: 0; }
+  .stage { position: relative; flex: 1; display: flex; justify-content: center; align-items: center; padding: 1rem; background: #0b0d12; min-width: 0; }
+  .stage.tag-mode { cursor: crosshair; }
+  .stage.tag-mode img { outline: 2px dashed #ffd76a; outline-offset: -2px; }
+  .event-dialog { position: absolute; transform: translate(-50%, -100%); background: rgba(20,24,32,0.92); color: #fff; padding: 0.5rem 0.9rem; border-radius: 8px; font-size: 1rem; max-width: 18rem; border: 2px solid #ffd76a; box-shadow: 0 4px 12px rgba(0,0,0,0.6); pointer-events: none; opacity: 0; animation: eventShow 5s ease-out forwards; z-index: 40; text-align: center; line-height: 1.25; }
+  .event-dialog::after { content: ''; position: absolute; left: 50%; bottom: -8px; transform: translateX(-50%); border: 6px solid transparent; border-top-color: #ffd76a; }
+  @keyframes eventShow {
+    0%   { opacity: 0; transform: translate(-50%, -100%) translateY(10px); }
+    8%   { opacity: 1; transform: translate(-50%, -100%) translateY(0); }
+    70%  { opacity: 1; transform: translate(-50%, -100%) translateY(0); }
+    100% { opacity: 0; transform: translate(-50%, -100%) translateY(-4px); }
+  }
+  .event-form-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 200; }
+  .event-form-overlay.show { display: flex; }
+  .event-form { background: #161a26; border: 1px solid #333; border-radius: 8px; padding: 1.25rem; min-width: 22rem; display: flex; flex-direction: column; gap: 0.75rem; }
+  .event-form h3 { margin: 0; font-size: 1.05rem; color: #8ab4ff; }
+  .event-form input[type=text], .event-form input[type=datetime-local] { background: #0b0d12; color: #e6e9ef; border: 1px solid #333; padding: 0.45rem 0.6rem; border-radius: 4px; font-size: 0.9rem; }
+  .event-form label { font-size: 0.8rem; color: #aab; gap: 0.25rem; flex-direction: column; align-items: stretch; }
+  .event-form .actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
+  .event-form .pos-hint { font-size: 0.75rem; color: #788; font-variant-numeric: tabular-nums; }
   .stage img { max-width: 100%; max-height: 78vh; box-shadow: 0 0 20px #000; }
   .stage:fullscreen { padding: 0; }
   .stage:fullscreen img { max-height: 100vh; max-width: 100vw; box-shadow: none; }
@@ -62,12 +80,28 @@
   <a href="/">Live</a>
   <a href="/touch">Touch</a>
   <a href="/browse">Browse</a>
+  <a href="/events">Events</a>
+  <button id="logEventBtn" style="font-size:0.85rem; padding:0.35rem 0.7rem;">Log event</button>
   <a id="saveLink" href="/save">Save MP4</a>
   <select id="daySel" title="Day"></select>
   <a id="saveDay" href="#">Save Day Video</a>
 </header>
 <div class="camera-switcher" id="cameraSwitcher"></div>
 <div class="thumb-tooltip" id="thumbTooltip"></div>
+
+<div class="event-form-overlay" id="eventOverlay">
+  <div class="event-form">
+    <h3>New event</h3>
+    <span class="pos-hint" id="evPosHint">--</span>
+    <input id="evMsg" type="text" maxlength="200" placeholder="e.g. Beacon tower light">
+    <label>Start <input id="evStart" type="datetime-local" step="1"></label>
+    <label>End <input id="evEnd" type="datetime-local" step="1"></label>
+    <div class="actions">
+      <button id="evCancel">Cancel</button>
+      <button id="evSubmit" style="background:#2d4a2d;">Submit</button>
+    </div>
+  </div>
+</div>
 <div class="main">
   <div class="sidebar" id="rangePresets"></div>
   <div class="stage"><img id="frame" alt="sky"></div>
@@ -181,9 +215,137 @@ function toggleFullscreen() {
 fsBtn.addEventListener('click', toggleFullscreen);
 stage.addEventListener('click', (e) => {
   if (e.target.closest('button, input, select, a')) return;
+  if (tagMode) { handleTagClick(e); return; }
   toggleFullscreen();
 });
 stage.style.cursor = 'pointer';
+
+let tagMode = false;
+let pendingClick = null;
+let events = [];
+const shownEvents = new Set();
+
+const logEventBtn = document.getElementById('logEventBtn');
+const eventOverlay = document.getElementById('eventOverlay');
+const evMsg = document.getElementById('evMsg');
+const evStart = document.getElementById('evStart');
+const evEnd = document.getElementById('evEnd');
+const evSubmit = document.getElementById('evSubmit');
+const evCancel = document.getElementById('evCancel');
+const evPosHint = document.getElementById('evPosHint');
+
+function setTagMode(on) {
+  tagMode = on;
+  stage.classList.toggle('tag-mode', on);
+  logEventBtn.textContent = on ? 'Cancel tagging' : 'Log event';
+  logEventBtn.style.background = on ? '#5a2a2a' : '';
+}
+
+logEventBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  setTagMode(!tagMode);
+});
+
+function tsToInputValue(iso) {
+  return iso.length >= 19 ? iso.slice(0, 19) : iso;
+}
+
+function handleTagClick(e) {
+  const rect = img.getBoundingClientRect();
+  const x = (e.clientX - rect.left) / rect.width;
+  const y = (e.clientY - rect.top) / rect.height;
+  if (x < 0 || x > 1 || y < 0 || y > 1) return;
+  pendingClick = { x_pct: x, y_pct: y };
+  evPosHint.textContent = `pixel at ${(x*100).toFixed(1)}%, ${(y*100).toFixed(1)}%`;
+  const currentTs = frames[idx]?.ts ? tsToInputValue(frames[idx].ts) : '';
+  evMsg.value = '';
+  evStart.value = currentTs;
+  evEnd.value = currentTs;
+  eventOverlay.classList.add('show');
+  evMsg.focus();
+}
+
+evCancel.addEventListener('click', () => {
+  eventOverlay.classList.remove('show');
+  pendingClick = null;
+  setTagMode(false);
+});
+
+evSubmit.addEventListener('click', async () => {
+  if (!pendingClick) return;
+  const msg = evMsg.value.trim();
+  if (!msg) { alert('Message required'); return; }
+  const startTs = evStart.value.length === 16 ? evStart.value + ':00' : evStart.value;
+  const endTs = evEnd.value.length === 16 ? evEnd.value + ':00' : evEnd.value;
+  if (!startTs || !endTs) { alert('Start and end required'); return; }
+  if (startTs > endTs) { alert('Start must be before end'); return; }
+  const payload = {
+    camera: CAMERA || null,
+    x_pct: pendingClick.x_pct,
+    y_pct: pendingClick.y_pct,
+    message: msg,
+    start_ts: startTs,
+    end_ts: endTs,
+  };
+  try {
+    const r = await fetch('/api/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    eventOverlay.classList.remove('show');
+    pendingClick = null;
+    setTagMode(false);
+    await loadEvents();
+  } catch (e) {
+    alert(`Submit failed: ${e.message}`);
+  }
+});
+
+async function loadEvents() {
+  try {
+    const r = await fetch(withCam('/api/events'));
+    events = await r.json();
+  } catch (e) { console.warn('events load failed', e); }
+}
+
+function spawnEventDialog(ev) {
+  const dialog = document.createElement('div');
+  dialog.className = 'event-dialog';
+  dialog.dataset.eventId = ev.id;
+  dialog.textContent = ev.message;
+  const imgRect = img.getBoundingClientRect();
+  const stageRect = stage.getBoundingClientRect();
+  const xpx = imgRect.left - stageRect.left + ev.x_pct * imgRect.width;
+  const ypx = imgRect.top - stageRect.top + ev.y_pct * imgRect.height;
+  dialog.style.left = `${xpx}px`;
+  dialog.style.top = `${ypx - 14}px`;
+  dialog.addEventListener('animationend', () => dialog.remove());
+  stage.appendChild(dialog);
+}
+
+function renderActiveEvents() {
+  if (!events.length || !frames.length) return;
+  const ts = frames[idx].ts;
+  const active = new Set();
+  for (const ev of events) {
+    if (ts >= ev.start_ts && ts <= ev.end_ts) {
+      active.add(ev.id);
+      if (!shownEvents.has(ev.id)) {
+        spawnEventDialog(ev);
+        shownEvents.add(ev.id);
+      }
+    }
+  }
+  for (const id of [...shownEvents]) {
+    if (!active.has(id)) {
+      shownEvents.delete(id);
+      const el = document.querySelector(`.event-dialog[data-event-id="${id}"]`);
+      if (el) el.remove();
+    }
+  }
+}
 
 document.addEventListener('keydown', (e) => {
   const t = e.target;
@@ -692,6 +854,7 @@ function show(i) {
   tsLabel.textContent = f.ts.replace('T', ' ');
   seek.value = idx;
   seek.style.setProperty('--thumb-color', frameTimeColor(idx));
+  renderActiveEvents();
 }
 
 function tick() {
@@ -761,9 +924,10 @@ async function buildCameraSwitcher(alwaysShow) {
   await loadSunTimes();
   await loadFrames();
   await loadDays();
+  await loadEvents();
   if (frames.length) show(idx);
   restartTimer();
-  setInterval(async () => { await loadSunTimes(); await loadFrames(); }, 30000);
+  setInterval(async () => { await loadSunTimes(); await loadFrames(); await loadEvents(); }, 30000);
   setInterval(loadDays, 60000);
 })();
 </script>

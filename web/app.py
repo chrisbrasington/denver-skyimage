@@ -2,6 +2,8 @@ import json
 import os
 import re
 import tempfile
+import threading
+import uuid
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -14,6 +16,8 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Streamin
 from fastapi.templating import Jinja2Templates
 
 IMAGE_DIR = Path(os.environ.get("IMAGE_DIR", "/data/images"))
+EVENTS_DIR = Path(os.environ.get("EVENTS_DIR", "/data/events"))
+EVENTS_FILE = EVENTS_DIR / "events.json"
 CAMERAS_PATH = os.environ.get("CAMERAS_PATH", "/config/cameras.json")
 DENVER = LocationInfo("Denver", "USA", "America/Denver", 39.7392, -104.9903)
 UTC_TZ = ZoneInfo("UTC")
@@ -34,6 +38,24 @@ def load_cameras():
 CAMERAS = load_cameras()
 CAMERA_NAMES = [c["name"] for c in CAMERAS]
 DEFAULT_CAMERA = CAMERA_NAMES[0] if CAMERA_NAMES else "north"
+
+_events_lock = threading.Lock()
+
+
+def _load_events():
+    if not EVENTS_FILE.exists():
+        return []
+    try:
+        return json.loads(EVENTS_FILE.read_text() or "[]")
+    except Exception as e:
+        print(f"events load error: {e}", flush=True)
+        return []
+
+
+def _save_events(events):
+    EVENTS_DIR.mkdir(parents=True, exist_ok=True)
+    EVENTS_FILE.write_text(json.dumps(events, indent=2))
+
 
 app = FastAPI()
 
@@ -99,6 +121,11 @@ def index_for_camera(name: str, request: Request):
 @app.get("/browse", response_class=HTMLResponse)
 def browse(request: Request):
     return TEMPLATES.TemplateResponse(request, "browse.html")
+
+
+@app.get("/events", response_class=HTMLResponse)
+def events_page(request: Request):
+    return TEMPLATES.TemplateResponse(request, "events.html")
 
 
 @app.get("/live", response_class=HTMLResponse)
@@ -223,6 +250,112 @@ def delete_image(name: str, camera: str | None = None, cam: str | None = None):
     except OSError as e:
         raise HTTPException(500, f"unlink failed: {e}")
     return {"deleted": name}
+
+
+@app.get("/api/events")
+def api_events(camera: str | None = None, cam: str | None = None, everywhere: int = 0):
+    with _events_lock:
+        events = _load_events()
+    if everywhere:
+        return events
+    name = camera or cam or DEFAULT_CAMERA
+    if name not in CAMERA_NAMES:
+        raise HTTPException(404, f"unknown camera: {name}")
+    return [e for e in events if e.get("camera") == name]
+
+
+@app.post("/api/events")
+async def api_create_event(req: Request):
+    body = await req.json()
+    cam_name = body.get("camera") or DEFAULT_CAMERA
+    if cam_name not in CAMERA_NAMES:
+        raise HTTPException(400, f"unknown camera: {cam_name}")
+    try:
+        x = float(body["x_pct"])
+        y = float(body["y_pct"])
+        message = str(body["message"]).strip()[:200]
+        start_ts = str(body["start_ts"]).strip()
+        end_ts = str(body["end_ts"]).strip()
+    except (KeyError, TypeError, ValueError) as e:
+        raise HTTPException(400, f"bad payload: {e}")
+    if not message:
+        raise HTTPException(400, "message required")
+    if not (0.0 <= x <= 1.0) or not (0.0 <= y <= 1.0):
+        raise HTTPException(400, "x_pct and y_pct must be 0..1")
+    if start_ts > end_ts:
+        raise HTTPException(400, "start_ts must be <= end_ts")
+    ev = {
+        "id": uuid.uuid4().hex[:12],
+        "camera": cam_name,
+        "x_pct": x,
+        "y_pct": y,
+        "message": message,
+        "start_ts": start_ts,
+        "end_ts": end_ts,
+        "created_ts": datetime.now().isoformat(timespec="seconds"),
+    }
+    with _events_lock:
+        events = _load_events()
+        events.append(ev)
+        _save_events(events)
+    return ev
+
+
+@app.delete("/api/events/{event_id}")
+def api_delete_event(event_id: str):
+    with _events_lock:
+        events = _load_events()
+        new_events = [e for e in events if e.get("id") != event_id]
+        if len(new_events) == len(events):
+            raise HTTPException(404, "event not found")
+        _save_events(new_events)
+    return {"deleted": event_id}
+
+
+@app.patch("/api/events/{event_id}")
+async def api_update_event(event_id: str, req: Request):
+    body = await req.json()
+    with _events_lock:
+        events = _load_events()
+        for e in events:
+            if e.get("id") != event_id:
+                continue
+            if "message" in body:
+                msg = str(body["message"]).strip()[:200]
+                if not msg:
+                    raise HTTPException(400, "message required")
+                e["message"] = msg
+            if "start_ts" in body:
+                e["start_ts"] = str(body["start_ts"]).strip()
+            if "end_ts" in body:
+                e["end_ts"] = str(body["end_ts"]).strip()
+            if "x_pct" in body:
+                v = float(body["x_pct"])
+                if 0 <= v <= 1: e["x_pct"] = v
+            if "y_pct" in body:
+                v = float(body["y_pct"])
+                if 0 <= v <= 1: e["y_pct"] = v
+            if e["start_ts"] > e["end_ts"]:
+                raise HTTPException(400, "start_ts must be <= end_ts")
+            _save_events(events)
+            return e
+    raise HTTPException(404, "event not found")
+
+
+@app.delete("/api/events")
+def api_delete_events(camera: str | None = None, cam: str | None = None):
+    name = camera or cam
+    with _events_lock:
+        events = _load_events()
+        if name:
+            if name not in CAMERA_NAMES:
+                raise HTTPException(404, f"unknown camera: {name}")
+            kept = [e for e in events if e.get("camera") != name]
+        else:
+            kept = []
+        deleted = len(events) - len(kept)
+        _save_events(kept)
+    return {"deleted": deleted}
 
 
 @app.get("/save")
