@@ -298,6 +298,27 @@ function resumeFromStart() {
 rangeMin.addEventListener('change', resumeFromStart);
 rangeMax.addEventListener('change', resumeFromStart);
 
+const dual = document.querySelector('.rangebar .dual');
+dual.addEventListener('click', (e) => {
+  if (!frames.length) return;
+  if (e.target.tagName === 'INPUT') return;
+  const rect = dual.getBoundingClientRect();
+  const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  const target = Math.round(pct * (frames.length - 1));
+  const distLo = Math.abs(target - rangeLo);
+  const distHi = Math.abs(target - rangeHi);
+  let v = snapToDay(target);
+  if (distLo <= distHi) {
+    if (v >= rangeHi) v = Math.max(0, rangeHi - 1);
+    rangeLo = v;
+  } else {
+    if (v <= rangeLo) v = Math.min(frames.length - 1, rangeLo + 1);
+    rangeHi = v;
+  }
+  applyRangeUI();
+  resumeFromStart();
+});
+
 document.addEventListener('keydown', (e) => { if (e.key === 'Shift') shiftDown = true; });
 document.addEventListener('keyup', (e) => { if (e.key === 'Shift') shiftDown = false; });
 
