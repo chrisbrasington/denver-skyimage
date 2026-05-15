@@ -31,6 +31,21 @@
 <div class="grid" id="grid"></div>
 <div class="status" id="status">loading…</div>
 <script>
+const urlParams = new URLSearchParams(window.location.search);
+const CAMERA = urlParams.get('camera') || urlParams.get('cam') || '';
+const camQS = CAMERA ? `camera=${encodeURIComponent(CAMERA)}` : '';
+function withCam(url) {
+  if (!CAMERA) return url;
+  return url + (url.includes('?') ? '&' : '?') + camQS;
+}
+function imgUrl(name, extra) {
+  let u = `/image/${name}`;
+  const parts = [];
+  if (CAMERA) parts.push(camQS);
+  if (extra) parts.push(extra);
+  if (parts.length) u += '?' + parts.join('&');
+  return u;
+}
 const grid = document.getElementById('grid');
 const status = document.getElementById('status');
 const counter = document.getElementById('counter');
@@ -44,7 +59,7 @@ async function loadPage() {
   if (loading || done) return;
   loading = true;
   status.textContent = 'loading…';
-  const r = await fetch(`/api/list?page=${page}&per_page=${perPage}`);
+  const r = await fetch(withCam(`/api/list?page=${page}&per_page=${perPage}`));
   const data = await r.json();
   total = data.total;
   counter.textContent = `${total} frames`;
@@ -61,12 +76,12 @@ async function loadPage() {
 
     const thumb = document.createElement('a');
     thumb.className = 'thumb';
-    thumb.href = `/image/${f.name}`;
+    thumb.href = imgUrl(f.name);
     thumb.target = '_blank';
     thumb.rel = 'noopener';
     const im = document.createElement('img');
     im.loading = 'lazy';
-    im.src = `/image/${f.name}`;
+    im.src = imgUrl(f.name);
     im.alt = f.ts;
     thumb.appendChild(im);
 
@@ -77,7 +92,7 @@ async function loadPage() {
     const actions = document.createElement('div');
     actions.className = 'actions';
     const dl = document.createElement('a');
-    dl.href = `/image/${f.name}?download=1`;
+    dl.href = imgUrl(f.name, 'download=1');
     dl.textContent = 'Download';
     const del = document.createElement('button');
     del.className = 'del';
@@ -108,7 +123,7 @@ async function deleteTile(tile, name) {
   if (!confirm(`Delete ${name}?`)) return;
   tile.classList.add('removing');
   try {
-    const r = await fetch(`/image/${name}`, { method: 'DELETE' });
+    const r = await fetch(imgUrl(name), { method: 'DELETE' });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     tile.remove();
     total = Math.max(0, total - 1);

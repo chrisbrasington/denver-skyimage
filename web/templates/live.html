@@ -72,6 +72,16 @@
   </div>
 </div>
 <script>
+const urlParams = new URLSearchParams(window.location.search);
+const CAMERA = urlParams.get('camera') || urlParams.get('cam') || '';
+const camQS = CAMERA ? `camera=${encodeURIComponent(CAMERA)}` : '';
+function withCam(url) {
+  if (!CAMERA) return url;
+  return url + (url.includes('?') ? '&' : '?') + camQS;
+}
+function imgUrl(name) {
+  return CAMERA ? `/image/${name}?${camQS}` : `/image/${name}`;
+}
 const FPS = 10;
 const FS_DURATION_MS = 30000;
 const IDLE_MS = 120000;
@@ -130,7 +140,7 @@ function resetIdle() {
 resetIdle();
 
 async function loadFrames() {
-  const r = await fetch('/api/frames');
+  const r = await fetch(withCam('/api/frames'));
   const data = await r.json();
   const prevLen = frames.length;
   const wasAtEnd = rangeHi === Math.max(0, prevLen - 1);
@@ -151,7 +161,7 @@ async function loadFrames() {
 
 async function loadSunTimes() {
   try {
-    const r = await fetch('/api/anchors');
+    const r = await fetch(withCam('/api/anchors'));
     const data = await r.json();
     sunTimes = {};
     for (const d of data) sunTimes[d.day] = { sunrise: d.sunrise, sunset: d.sunset };
@@ -281,7 +291,7 @@ function show(i) {
   if (!frames.length) return;
   idx = Math.max(rangeLo, Math.min(rangeHi, i));
   const f = frames[idx];
-  img.src = `/image/${f.name}`;
+  img.src = imgUrl(f.name);
   tsLabel.textContent = f.ts.replace('T', ' ');
   seek.value = idx;
 }

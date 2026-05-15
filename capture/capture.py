@@ -1,4 +1,5 @@
 import hashlib
+import json
 import os
 import re
 import time
@@ -10,6 +11,7 @@ import yaml
 from PIL import Image
 
 CONFIG_PATH = os.environ.get("CONFIG_PATH", "/config/config.yaml")
+CAMERAS_PATH = os.environ.get("CAMERAS_PATH", "/config/cameras.json")
 IMAGE_DIR = Path(os.environ.get("IMAGE_DIR", "/data/images"))
 TIMESTAMP_RE = re.compile(r"^(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})\.jpg$")
 
@@ -17,6 +19,15 @@ TIMESTAMP_RE = re.compile(r"^(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})\.jpg$")
 def load_config():
     with open(CONFIG_PATH) as f:
         return yaml.safe_load(f)
+
+
+def load_cameras():
+    with open(CAMERAS_PATH) as f:
+        return json.load(f).get("cameras", [])
+
+
+def camera_dir(cam, is_first):
+    return IMAGE_DIR if is_first else IMAGE_DIR / cam["name"]
 
 
 def download(url, path):
@@ -50,9 +61,13 @@ def sha256(path):
     return h.hexdigest()
 
 
-def list_timestamped():
+def list_timestamped(target_dir):
     files = []
-    for p in IMAGE_DIR.iterdir():
+    if not target_dir.exists():
+        return files
+    for p in target_dir.iterdir():
+        if not p.is_file():
+            continue
         m = TIMESTAMP_RE.match(p.name)
         if not m:
             continue
@@ -65,8 +80,8 @@ def list_timestamped():
     return files
 
 
-def prune(max_age_days, max_size_gb):
-    files = list_timestamped()
+def prune(target_dir, max_age_days, max_size_gb, label):
+    files = list_timestamped(target_dir)
     cutoff = datetime.now() - timedelta(days=max_age_days)
     removed_age = 0
     for ts, p in files:
@@ -77,9 +92,9 @@ def prune(max_age_days, max_size_gb):
             except OSError as e:
                 print(f"unlink fail {p}: {e}", flush=True)
     if removed_age:
-        print(f"[{datetime.now()}] pruned {removed_age} by age", flush=True)
+        print(f"[{datetime.now()}] [{label}] pruned {removed_age} by age", flush=True)
 
-    files = list_timestamped()
+    files = list_timestamped(target_dir)
     max_bytes = int(max_size_gb * (1024 ** 3))
     total = sum(p.stat().st_size for _, p in files)
     removed_size = 0
@@ -95,47 +110,57 @@ def prune(max_age_days, max_size_gb):
             print(f"unlink fail {p}: {e}", flush=True)
         i += 1
     if removed_size:
-        print(f"[{datetime.now()}] pruned {removed_size} by size", flush=True)
+        print(f"[{datetime.now()}] [{label}] pruned {removed_size} by size", flush=True)
+
+
+def process_camera(cam, is_first, max_age_days, max_size_gb, do_prune):
+    target = camera_dir(cam, is_first)
+    target.mkdir(parents=True, exist_ok=True)
+    temp = target / ".temp.jpg"
+    last = target / ".last.jpg"
+    url = cam["url"]
+    label = cam["name"]
+
+    if download(url, temp):
+        if looks_corrupt(temp):
+            print(f"[{datetime.now()}] [{label}] corrupt/partial, skip", flush=True)
+            if temp.exists():
+                temp.unlink()
+        else:
+            new_hash = sha256(temp)
+            old_hash = sha256(last) if last.exists() else None
+            if new_hash != old_hash:
+                name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S.jpg")
+                dest = target / name
+                os.replace(temp, dest)
+                last.write_bytes(dest.read_bytes())
+                print(f"[{datetime.now()}] [{label}] saved {name}", flush=True)
+            elif temp.exists():
+                temp.unlink()
+
+    if do_prune:
+        prune(target, max_age_days, max_size_gb, label)
 
 
 def main():
     IMAGE_DIR.mkdir(parents=True, exist_ok=True)
     cfg = load_config()
-    url = cfg["image_url"]
     interval = int(cfg.get("check_interval_seconds", 30))
     max_age_days = float(cfg.get("max_age_days", 4))
     max_size_gb = float(cfg.get("max_size_gb", 10))
 
-    temp = IMAGE_DIR / ".temp.jpg"
-    last = IMAGE_DIR / ".last.jpg"
-    print(f"start watcher url={url} interval={interval}s age={max_age_days}d size={max_size_gb}GB", flush=True)
+    cameras = load_cameras()
+    if not cameras:
+        print("no cameras configured", flush=True)
+        return
+    print(f"start watcher cameras={[c['name'] for c in cameras]} interval={interval}s age={max_age_days}d size={max_size_gb}GB", flush=True)
 
     prune_counter = 0
     while True:
-        if download(url, temp):
-            if looks_corrupt(temp):
-                print(f"[{datetime.now()}] corrupt/partial image, skip", flush=True)
-                if temp.exists():
-                    temp.unlink()
-                time.sleep(interval)
-                continue
-            new_hash = sha256(temp)
-            old_hash = sha256(last) if last.exists() else None
-            if new_hash != old_hash:
-                name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S.jpg")
-                dest = IMAGE_DIR / name
-                os.replace(temp, dest)
-                last.write_bytes(dest.read_bytes())
-                print(f"[{datetime.now()}] saved {name}", flush=True)
-            else:
-                if temp.exists():
-                    temp.unlink()
-
-        prune_counter += 1
-        if prune_counter >= 10:
-            prune(max_age_days, max_size_gb)
-            prune_counter = 0
-
+        do_prune = prune_counter >= 10
+        for i, cam in enumerate(cameras):
+            process_camera(cam, i == 0, max_age_days, max_size_gb, do_prune)
+        prune_counter = 0 if do_prune else prune_counter + 1
         time.sleep(interval)
 
 

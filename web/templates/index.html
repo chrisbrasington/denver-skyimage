@@ -76,6 +76,21 @@
   </div>
 </div>
 <script>
+const urlParams = new URLSearchParams(window.location.search);
+const CAMERA = urlParams.get('camera') || urlParams.get('cam') || '';
+const camQS = CAMERA ? `camera=${encodeURIComponent(CAMERA)}` : '';
+function withCam(url) {
+  if (!CAMERA) return url;
+  return url + (url.includes('?') ? '&' : '?') + camQS;
+}
+function imgUrl(name, extra = '') {
+  let u = `/image/${name}`;
+  const parts = [];
+  if (CAMERA) parts.push(camQS);
+  if (extra) parts.push(extra);
+  if (parts.length) u += '?' + parts.join('&');
+  return u;
+}
 let frames = [];
 let idx = 0;
 let playing = true;
@@ -130,7 +145,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 async function loadFrames() {
-  const r = await fetch('/api/frames');
+  const r = await fetch(withCam('/api/frames'));
   const data = await r.json();
   const prevLen = frames.length;
   const wasAtEnd = rangeHi === Math.max(0, prevLen - 1);
@@ -187,7 +202,7 @@ function computeAnchors() {
 
 async function loadSunTimes() {
   try {
-    const r = await fetch('/api/anchors');
+    const r = await fetch(withCam('/api/anchors'));
     const data = await r.json();
     sunTimes = {};
     for (const d of data) sunTimes[d.day] = { sunrise: d.sunrise, sunset: d.sunset };
@@ -294,17 +309,17 @@ function updateSaveLink() {
     const e = frames[rangeHi].ts.replace('T', '_').replace(/:/g, '-');
     saveUrl += `&start=${s}&end=${e}`;
   }
-  saveLink.href = saveUrl;
+  saveLink.href = withCam(saveUrl);
   const day = daySel.value;
   if (day) {
-    saveDay.href = `/save?fps=${fps}&start=${day}_00-00-00&end=${day}_23-59-59`;
+    saveDay.href = withCam(`/save?fps=${fps}&start=${day}_00-00-00&end=${day}_23-59-59`);
   } else {
     saveDay.href = '#';
   }
 }
 
 async function loadDays() {
-  const r = await fetch('/api/days');
+  const r = await fetch(withCam('/api/days'));
   const days = await r.json();
   const prev = daySel.value;
   daySel.innerHTML = '';
@@ -326,7 +341,7 @@ function show(i) {
   if (!frames.length) return;
   idx = Math.max(rangeLo, Math.min(rangeHi, i));
   const f = frames[idx];
-  img.src = `/image/${f.name}`;
+  img.src = imgUrl(f.name);
   tsLabel.textContent = f.ts.replace('T', ' ');
   seek.value = idx;
 }

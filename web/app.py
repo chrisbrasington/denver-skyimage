@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import tempfile
@@ -13,20 +14,51 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Streamin
 from fastapi.templating import Jinja2Templates
 
 IMAGE_DIR = Path(os.environ.get("IMAGE_DIR", "/data/images"))
+CAMERAS_PATH = os.environ.get("CAMERAS_PATH", "/config/cameras.json")
 DENVER = LocationInfo("Denver", "USA", "America/Denver", 39.7392, -104.9903)
 UTC_TZ = ZoneInfo("UTC")
 LOCAL_TZ = ZoneInfo("America/Denver")
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 TIMESTAMP_RE = re.compile(r"^(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})\.jpg$")
 
+
+def load_cameras():
+    try:
+        with open(CAMERAS_PATH) as f:
+            return json.load(f).get("cameras", [])
+    except Exception as e:
+        print(f"cameras.json load failed: {e}", flush=True)
+        return [{"name": "north"}]
+
+
+CAMERAS = load_cameras()
+CAMERA_NAMES = [c["name"] for c in CAMERAS]
+DEFAULT_CAMERA = CAMERA_NAMES[0] if CAMERA_NAMES else "north"
+
 app = FastAPI()
 
 
-def list_frames():
+def resolve_camera(camera, cam):
+    name = camera or cam
+    if not name or name == DEFAULT_CAMERA:
+        return None
+    if name not in CAMERA_NAMES:
+        raise HTTPException(404, f"unknown camera: {name}")
+    return name
+
+
+def camera_image_dir(subdir):
+    return IMAGE_DIR if subdir is None else IMAGE_DIR / subdir
+
+
+def list_frames(subdir=None):
     frames = []
-    if not IMAGE_DIR.exists():
+    d = camera_image_dir(subdir)
+    if not d.exists():
         return frames
-    for p in IMAGE_DIR.iterdir():
+    for p in d.iterdir():
+        if not p.is_file():
+            continue
         m = TIMESTAMP_RE.match(p.name)
         if not m:
             continue
@@ -67,9 +99,15 @@ def touch(request: Request):
     return TEMPLATES.TemplateResponse(request, "live.html", {"touch_mode": True})
 
 
+@app.get("/api/cameras")
+def api_cameras():
+    return {"default": DEFAULT_CAMERA, "cameras": CAMERA_NAMES}
+
+
 @app.get("/api/frames")
-def api_frames(since: str | None = None):
-    frames = list_frames()
+def api_frames(since: str | None = None, camera: str | None = None, cam: str | None = None):
+    sub = resolve_camera(camera, cam)
+    frames = list_frames(sub)
     if since:
         frames = [f for f in frames if f[0].strftime("%Y-%m-%d_%H-%M-%S") > since]
     return JSONResponse([
@@ -78,8 +116,9 @@ def api_frames(since: str | None = None):
 
 
 @app.get("/api/anchors")
-def api_anchors():
-    frames = list_frames()
+def api_anchors(camera: str | None = None, cam: str | None = None):
+    sub = resolve_camera(camera, cam)
+    frames = list_frames(sub)
     days = sorted({ts.date() for ts, _ in frames})
     out = []
     for d in days:
@@ -96,8 +135,9 @@ def api_anchors():
 
 
 @app.get("/api/days")
-def api_days():
-    frames = list_frames()
+def api_days(camera: str | None = None, cam: str | None = None):
+    sub = resolve_camera(camera, cam)
+    frames = list_frames(sub)
     counts = {}
     for ts, _ in frames:
         day = ts.strftime("%Y-%m-%d")
@@ -107,8 +147,9 @@ def api_days():
 
 
 @app.get("/api/list")
-def api_list(page: int = 1, per_page: int = 60):
-    frames = list_frames()
+def api_list(page: int = 1, per_page: int = 60, camera: str | None = None, cam: str | None = None):
+    sub = resolve_camera(camera, cam)
+    frames = list_frames(sub)
     frames.reverse()
     total = len(frames)
     start = (page - 1) * per_page
@@ -123,10 +164,11 @@ def api_list(page: int = 1, per_page: int = 60):
 
 
 @app.get("/image/{name}")
-def image(name: str, download: int = 0):
+def image(name: str, download: int = 0, camera: str | None = None, cam: str | None = None):
     if not TIMESTAMP_RE.match(name):
         raise HTTPException(400, "bad name")
-    p = IMAGE_DIR / name
+    sub = resolve_camera(camera, cam)
+    p = camera_image_dir(sub) / name
     if not p.exists():
         raise HTTPException(404, "not found")
     headers = {"Content-Disposition": f'attachment; filename="{name}"'} if download else None
@@ -134,10 +176,11 @@ def image(name: str, download: int = 0):
 
 
 @app.delete("/image/{name}")
-def delete_image(name: str):
+def delete_image(name: str, camera: str | None = None, cam: str | None = None):
     if not TIMESTAMP_RE.match(name):
         raise HTTPException(400, "bad name")
-    p = IMAGE_DIR / name
+    sub = resolve_camera(camera, cam)
+    p = camera_image_dir(sub) / name
     if not p.exists():
         raise HTTPException(404, "not found")
     try:
@@ -152,8 +195,12 @@ def save(
     start: str | None = Query(None),
     end: str | None = Query(None),
     fps: int = Query(10, ge=1, le=60),
+    camera: str | None = Query(None),
+    cam: str | None = Query(None),
 ):
-    frames = list_frames()
+    sub = resolve_camera(camera, cam)
+    base = camera_image_dir(sub)
+    frames = list_frames(sub)
     if start:
         s = parse_ts(start)
         if s:
@@ -165,7 +212,7 @@ def save(
     if not frames:
         raise HTTPException(404, "no frames in range")
 
-    first = cv2.imread(str(IMAGE_DIR / frames[0][1]))
+    first = cv2.imread(str(base / frames[0][1]))
     if first is None:
         raise HTTPException(500, "cannot read first frame")
     h, w, _ = first.shape
@@ -176,7 +223,7 @@ def save(
     writer = cv2.VideoWriter(tmp.name, fourcc, fps, (w, h))
     try:
         for ts, name in frames:
-            img = cv2.imread(str(IMAGE_DIR / name))
+            img = cv2.imread(str(base / name))
             if img is None:
                 continue
             if img.shape[0] != h or img.shape[1] != w:
@@ -185,9 +232,10 @@ def save(
     finally:
         writer.release()
 
+    cam_label = (sub or DEFAULT_CAMERA)
     start_label = frames[0][0].strftime("%Y%m%d_%H%M%S")
     end_label = frames[-1][0].strftime("%Y%m%d_%H%M%S")
-    filename = f"timelapse_{start_label}_to_{end_label}.mp4"
+    filename = f"timelapse_{cam_label}_{start_label}_to_{end_label}.mp4"
 
     def iter_file():
         with open(tmp.name, "rb") as f:

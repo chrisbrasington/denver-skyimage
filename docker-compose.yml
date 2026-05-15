@@ -6,6 +6,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./config.yaml:/config/config.yaml:ro,z
+      - ./cameras.json:/config/cameras.json:ro,z
       - ./downloaded_images:/data/images:z
 
   web:
@@ -14,4 +15,5 @@ services:
     ports:
       - "8000:8000"
     volumes:
+      - ./cameras.json:/config/cameras.json:ro,z
       - ./downloaded_images:/data/images:z
