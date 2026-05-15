@@ -235,7 +235,7 @@ function buildPresets() {
     const md = day.slice(5);
     if (day === todayKey) {
       hi = frames.length - 1;
-      label = `Today (${md}): sunrise → CURRENT`;
+      label = `Today (${md}): sunrise → NOW`;
       cls = 'preset-today';
     } else if (sun.sunset) {
       const sunsetIdx = findIdxNearTime(byDay[day], sun.sunset);
@@ -251,6 +251,21 @@ function buildPresets() {
     btn.textContent = label;
     btn.addEventListener('click', () => applyPreset(sunriseIdx, hi));
     rangePresets.appendChild(btn);
+  }
+
+  const lastTsMs = new Date(frames[frames.length - 1].ts).getTime();
+  const targetMs = lastTsMs - 60 * 60 * 1000;
+  let hourIdx = 0;
+  for (let i = frames.length - 1; i >= 0; i--) {
+    if (new Date(frames[i].ts).getTime() <= targetMs) { hourIdx = i; break; }
+  }
+  if (hourIdx < frames.length - 1) {
+    const startLabel = frames[hourIdx].ts.slice(11, 16);
+    const hourBtn = document.createElement('button');
+    hourBtn.className = 'preset-today';
+    hourBtn.textContent = `Last hour (${startLabel} → NOW)`;
+    hourBtn.addEventListener('click', () => applyPreset(hourIdx, frames.length - 1));
+    rangePresets.appendChild(hourBtn);
   }
 }
 
@@ -344,7 +359,7 @@ function applyRangeUI() {
   rangeStartLabel.textContent = frames[rangeLo].ts.replace('T', ' ');
   const atCurrent = rangeHi === frames.length - 1;
   rangeEndLabel.textContent = atCurrent
-    ? `CURRENT (${frames[rangeHi].ts.replace('T', ' ')})`
+    ? `NOW (${frames[rangeHi].ts.replace('T', ' ')})`
     : frames[rangeHi].ts.replace('T', ' ');
   rangeEndLabel.style.color = atCurrent ? '#7fd17a' : '#788';
   seek.min = rangeLo;
