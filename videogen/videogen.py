@@ -2,12 +2,12 @@ import json
 import os
 import re
 import shutil
+import subprocess
+import tempfile
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
-
-import cv2
 
 CAMERAS_PATH = os.environ.get("CAMERAS_PATH", "/config/cameras.json")
 IMAGE_DIR = Path(os.environ.get("IMAGE_DIR", "/data/images"))
@@ -67,42 +67,45 @@ def free_bytes():
 def encode_day(frames, output_path):
     if not frames:
         return False
-    first = None
-    for _, p in frames:
-        first = cv2.imread(str(p))
-        if first is not None:
-            break
-    if first is None:
-        print(f"ERROR no readable frames for {output_path.name}", flush=True)
-        return False
-    h, w, _ = first.shape
     output_path.parent.mkdir(parents=True, exist_ok=True)
     tmp = output_path.with_suffix(".mp4.tmp")
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    writer = cv2.VideoWriter(str(tmp), fourcc, FPS, (w, h))
-    if not writer.isOpened():
-        print(f"ERROR VideoWriter failed to open for {output_path.name} (codec missing?)", flush=True)
-        return False
-    written = 0
-    skipped = 0
+    if tmp.exists():
+        tmp.unlink()
+
+    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as listf:
+        list_path = Path(listf.name)
+        for _, p in frames:
+            esc = str(p).replace("'", "'\\''")
+            listf.write(f"file '{esc}'\n")
+
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-hide_banner",
+        "-loglevel", "warning",
+        "-r", str(FPS),
+        "-f", "concat",
+        "-safe", "0",
+        "-i", str(list_path),
+        "-c:v", "libx264",
+        "-pix_fmt", "yuv420p",
+        "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2",
+        str(tmp),
+    ]
     try:
-        for ts, p in frames:
-            img = cv2.imread(str(p))
-            if img is None:
-                skipped += 1
-                continue
-            if img.shape[0] != h or img.shape[1] != w:
-                img = cv2.resize(img, (w, h))
-            writer.write(img)
-            written += 1
+        result = subprocess.run(cmd, capture_output=True, text=True)
     finally:
-        writer.release()
-    if skipped:
-        print(f"[{output_path.name}] skipped {skipped} unreadable frames", flush=True)
-    if written == 0 or not tmp.exists():
+        try: list_path.unlink()
+        except OSError: pass
+
+    if result.returncode != 0 or not tmp.exists():
+        print(f"ERROR ffmpeg failed for {output_path.name} rc={result.returncode}", flush=True)
+        if result.stderr:
+            print(result.stderr.strip(), flush=True)
         if tmp.exists():
             tmp.unlink()
         return False
+
     tmp.replace(output_path)
     return True
 
