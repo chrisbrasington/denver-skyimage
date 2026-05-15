@@ -10,7 +10,8 @@
   body { display: flex; flex-direction: column; }
   .main { flex: 1; display: flex; align-items: stretch; min-height: 0; }
   .sidebar { display: flex; flex-direction: column; justify-content: flex-end; gap: 0.5rem; padding: 1rem 0 1rem 1rem; min-width: 16rem; max-width: 20rem; }
-  .sidebar button { width: 100%; text-align: left; font-size: 1.05rem; padding: 0.85rem 1rem; min-width: 0; }
+  .sidebar button { width: 100%; text-align: left; font-size: 1.05rem; padding: 0.85rem 1rem; min-width: 0; transition: transform 0.18s ease-out, filter 0.18s ease-out; }
+  .sidebar button.active { transform: translateX(14px); filter: brightness(1.25); }
   .sidebar .preset-everything { background: #2a3b5a; }
   .sidebar .preset-today { background: #2d4a2d; }
   .sidebar .preset-sunrise { border-color: #d6a14b; }
@@ -359,14 +360,23 @@ function findIdxAtMin(dayIndices, targetMin, tol = FRAME_TOL) {
   return bestDiff <= tol ? best : -1;
 }
 
+let activePresetLabel = null;
+function refreshActivePreset() {
+  for (const b of rangePresets.querySelectorAll('button')) {
+    b.classList.toggle('active', activePresetLabel && b.dataset.label === activePresetLabel);
+  }
+}
 function addPresetButton(label, cls, lo, hi) {
   const btn = document.createElement('button');
   if (cls) btn.className = cls;
   btn.style.whiteSpace = 'pre-line';
   btn.textContent = label;
+  btn.dataset.label = label;
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
     presetActive = true;
+    activePresetLabel = label;
+    refreshActivePreset();
     applyPreset(lo, hi);
   });
   btn.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
@@ -466,6 +476,8 @@ function buildPresets() {
     const startLabel = frames[hourIdx].ts.slice(11, 16);
     addPresetButton(`Last hour\n${startLabel} → NOW`, 'preset-today', hourIdx, frames.length - 1);
   }
+
+  refreshActivePreset();
 }
 
 const SKY_STOPS = [
@@ -843,6 +855,8 @@ function findAnchorFor(day, kind) {
 function applyIdleReset() {
   if (!frames.length) return;
   presetActive = false;
+  activePresetLabel = null;
+  refreshActivePreset();
   const today = frames[frames.length - 1].ts.slice(0, 10);
   const days = Object.keys(sunTimes).sort();
   const todayIdx = days.indexOf(today);

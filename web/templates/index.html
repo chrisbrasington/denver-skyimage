@@ -28,7 +28,8 @@
   .stage:fullscreen { padding: 0; }
   .stage:fullscreen img { max-height: 100vh; max-width: 100vw; box-shadow: none; }
   .sidebar { display: flex; flex-direction: column; justify-content: flex-end; gap: 0.4rem; padding: 1rem 0 1rem 1rem; min-width: 13rem; max-width: 16rem; }
-  .sidebar button { width: 100%; text-align: left; font-size: 0.85rem; padding: 0.55rem 0.7rem; }
+  .sidebar button { width: 100%; text-align: left; font-size: 0.85rem; padding: 0.55rem 0.7rem; transition: transform 0.15s ease-out, filter 0.15s ease-out; }
+  .sidebar button.active { transform: translateX(10px); filter: brightness(1.25); }
   .sidebar .preset-everything { background: #2a3b5a; }
   .sidebar .preset-today { background: #2d4a2d; }
   .sidebar .preset-sunrise { border-color: #d6a14b; }
@@ -482,11 +483,22 @@ function findIdxAtMin(dayIndices, targetMin, tol = FRAME_TOL) {
   return bestDiff <= tol ? best : -1;
 }
 
+let activePresetLabel = null;
+function refreshActivePreset() {
+  for (const b of rangePresets.querySelectorAll('button')) {
+    b.classList.toggle('active', activePresetLabel && b.dataset.label === activePresetLabel);
+  }
+}
 function addPresetButton(label, cls, lo, hi) {
   const btn = document.createElement('button');
   if (cls) btn.className = cls;
   btn.textContent = label;
-  btn.addEventListener('click', () => applyPreset(lo, hi));
+  btn.dataset.label = label;
+  btn.addEventListener('click', () => {
+    activePresetLabel = label;
+    refreshActivePreset();
+    applyPreset(lo, hi);
+  });
   rangePresets.appendChild(btn);
 }
 
@@ -595,6 +607,8 @@ function buildPresets() {
     });
     rangePresets.appendChild(hourBtn);
   }
+
+  refreshActivePreset();
 }
 
 const SKY_STOPS = [
