@@ -95,6 +95,38 @@ def encode_day(frames, output_path):
     return True
 
 
+def log_path(name):
+    return VIDEO_DIR / name / "processed.log"
+
+
+def load_processed(name):
+    p = log_path(name)
+    days = set()
+    if not p.exists():
+        return days
+    try:
+        for line in p.read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split()
+            for tok in parts:
+                if len(tok) == 10 and tok[4] == "-" and tok[7] == "-":
+                    days.add(tok)
+                    break
+    except Exception as e:
+        print(f"ERROR reading {p}: {e}", flush=True)
+    return days
+
+
+def mark_processed(name, day_iso, fname, frame_count):
+    p = log_path(name)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    line = f"{datetime.now(TZ).isoformat(timespec='seconds')} {day_iso} {fname} frames={frame_count}\n"
+    with p.open("a") as f:
+        f.write(line)
+
+
 def process_camera(cam, is_first):
     name = cam["name"]
     src = camera_image_dir(cam, is_first)
@@ -111,10 +143,17 @@ def process_camera(cam, is_first):
         by_day.setdefault(d, []).append((ts, p))
     out_dir = VIDEO_DIR / name
     out_dir.mkdir(parents=True, exist_ok=True)
+    processed = load_processed(name)
     for d in sorted(by_day.keys()):
-        fname = f"{name}_{d.isoformat()}.mp4"
+        day_iso = d.isoformat()
+        fname = f"{name}_{day_iso}.mp4"
         out = out_dir / fname
         if out.exists():
+            if day_iso not in processed:
+                mark_processed(name, day_iso, fname, len(by_day[d]))
+            continue
+        if day_iso in processed:
+            print(f"[{now_local()}] [{name}] {fname} in processed.log, skip (file may have been pulled)", flush=True)
             continue
         free = free_bytes()
         if free < MIN_FREE_BYTES:
@@ -128,6 +167,7 @@ def process_camera(cam, is_first):
             flush=True,
         )
         if encode_day(by_day[d], out):
+            mark_processed(name, day_iso, fname, len(by_day[d]))
             print(f"[{now_local()}] [{name}] saved {fname}", flush=True)
         else:
             print(f"[{now_local()}] [{name}] encode failed {fname}", flush=True)
