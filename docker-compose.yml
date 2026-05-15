@@ -17,3 +17,11 @@ services:
     volumes:
       - ./cameras.json:/config/cameras.json:ro,z
       - ./downloaded_images:/data/images:z
+
+  videogen:
+    build: ./videogen
+    restart: unless-stopped
+    volumes:
+      - ./cameras.json:/config/cameras.json:ro,z
+      - ./downloaded_images:/data/images:ro,z
+      - ./videos:/data/videos:z
