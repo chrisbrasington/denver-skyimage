@@ -298,15 +298,16 @@ dual.addEventListener('click', (e) => {
   const rect = dual.getBoundingClientRect();
   const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
   const target = Math.round(pct * (frames.length - 1));
-  const distLo = Math.abs(target - rangeLo);
-  const distHi = Math.abs(target - rangeHi);
+  const selSize = Math.max(1, rangeHi - rangeLo);
+  const endTol = Math.max(2, Math.floor(selSize * 0.05));
+  const grabHi = target > rangeHi || target >= rangeHi - endTol;
   let v = snapToDay(target);
-  if (distLo <= distHi) {
-    if (v >= rangeHi) v = Math.max(0, rangeHi - 1);
-    rangeLo = v;
-  } else {
+  if (grabHi) {
     if (v <= rangeLo) v = Math.min(frames.length - 1, rangeLo + 1);
     rangeHi = v;
+  } else {
+    if (v >= rangeHi) v = Math.max(0, rangeHi - 1);
+    rangeLo = v;
   }
   applyRangeUI();
   resumeFromStart();
