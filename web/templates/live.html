@@ -608,9 +608,13 @@ function spawnEventDialog(ev) {
 function renderActiveEvents() {
   if (!events.length || !frames.length) return;
   const ts = frames[idx].ts;
+  const tMs = Date.parse(ts);
   const active = new Set();
   for (const ev of events) {
-    if (ts >= ev.start_ts && ts <= ev.end_ts) {
+    const sMs = Date.parse(ev.start_ts);
+    const eMs = Date.parse(ev.end_ts);
+    if (isNaN(tMs) || isNaN(sMs) || isNaN(eMs)) continue;
+    if (tMs >= sMs && tMs <= eMs) {
       active.add(ev.id);
       if (!shownEvents.has(ev.id)) {
         spawnEventDialog(ev);
