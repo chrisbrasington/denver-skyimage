@@ -13,6 +13,10 @@
   .sidebar button { width: 100%; text-align: left; font-size: 1.05rem; padding: 0.85rem 1rem; min-width: 0; }
   .sidebar .preset-everything { background: #2a3b5a; }
   .sidebar .preset-today { background: #2d4a2d; }
+  .sidebar .preset-sunrise { border-color: #d6a14b; }
+  .sidebar .preset-day { border-color: #6a7c8a; }
+  .sidebar .preset-sunset { border-color: #c2614e; }
+  .sidebar .preset-night { border-color: #3a4f7a; background: #161a26; }
   .stage { position: relative; flex: 1; display: flex; justify-content: center; align-items: center; padding: 0; background: #0b0d12; cursor: pointer; min-height: 0; min-width: 0; }
   .fs-hint { position: absolute; top: 1rem; right: 1rem; width: 110px; height: 110px; color: #e6e9ef; opacity: 0.45; pointer-events: none; animation: fsPulse 2.4s ease-in-out infinite; filter: drop-shadow(0 0 8px rgba(0,0,0,0.7)); transition: top 0.15s, right 0.15s; }
   .time-label { position: absolute; top: 1rem; right: 1rem; display: block; background: rgba(10,15,20,0.55); border: 2px solid rgba(255,255,255,0.4); border-radius: 14px; padding: 0.9rem 1.5rem; color: #fff; text-shadow: 0 2px 6px rgba(0,0,0,0.7); pointer-events: none; backdrop-filter: blur(4px); letter-spacing: 0.02em; z-index: 50; min-width: 18rem; text-align: right; transition: top 0.15s, right 0.15s; }
@@ -42,20 +46,20 @@
   .rangebar .anchors span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
   .rangebar .dual { position: relative; height: 44px; }
   .rangebar .track { position: absolute; top: 18px; left: 0; right: 0; height: 8px; background: #1f2630; border-radius: 4px; }
-  .rangebar .selected { position: absolute; top: 0; height: 100%; background: #8ab4ff; border-radius: 4px; }
+  .rangebar .selected { position: absolute; top: 0; height: 100%; background: rgba(255,255,255,0.28); border-radius: 4px; box-shadow: 0 0 0 2px rgba(255,255,255,0.55) inset; }
   .rangebar .daymarks { position: absolute; top: 12px; left: 0; right: 0; height: 20px; pointer-events: none; }
   .rangebar .daymarks span { position: absolute; top: 0; width: 2px; height: 20px; background: #455; }
   .rangebar input[type=range] { position: absolute; top: 8px; left: 0; width: 100%; height: 28px; background: transparent; appearance: none; pointer-events: none; margin: 0; }
-  .rangebar input[type=range]::-webkit-slider-thumb { appearance: none; width: 32px; height: 32px; border-radius: 50%; background: #e6e9ef; border: 3px solid #8ab4ff; cursor: pointer; pointer-events: auto; }
-  .rangebar input[type=range]::-moz-range-thumb { width: 32px; height: 32px; border-radius: 50%; background: #e6e9ef; border: 3px solid #8ab4ff; cursor: pointer; pointer-events: auto; }
+  .rangebar input[type=range]::-webkit-slider-thumb { appearance: none; width: 32px; height: 32px; border-radius: 50%; background: #e6e9ef; border: 3px solid #ffd76a; cursor: pointer; pointer-events: auto; }
+  .rangebar input[type=range]::-moz-range-thumb { width: 32px; height: 32px; border-radius: 50%; background: #e6e9ef; border: 3px solid #ffd76a; cursor: pointer; pointer-events: auto; }
   .rangebar input[type=range]::-webkit-slider-runnable-track { background: transparent; }
   .rangebar input[type=range]::-moz-range-track { background: transparent; }
 
   .seekbar { width: 100%; height: 28px; appearance: none; background: transparent; }
   .seekbar::-webkit-slider-runnable-track { height: 8px; background: #1f2630; border-radius: 4px; }
   .seekbar::-moz-range-track { height: 8px; background: #1f2630; border-radius: 4px; }
-  .seekbar::-webkit-slider-thumb { appearance: none; width: 28px; height: 28px; border-radius: 50%; background: #e6e9ef; border: 3px solid #8ab4ff; margin-top: -10px; }
-  .seekbar::-moz-range-thumb { width: 28px; height: 28px; border-radius: 50%; background: #e6e9ef; border: 3px solid #8ab4ff; }
+  .seekbar::-webkit-slider-thumb { appearance: none; width: 28px; height: 28px; border-radius: 50%; background: #e6e9ef; border: 3px solid #ffd76a; margin-top: -10px; }
+  .seekbar::-moz-range-thumb { width: 28px; height: 28px; border-radius: 50%; background: #e6e9ef; border: 3px solid #ffd76a; }
   .camera-switcher { position: fixed; top: 1rem; right: 1rem; display: flex; flex-direction: column; gap: 0.5rem; z-index: 100; }
   .camera-switcher button { font-size: 1.1rem; padding: 0.7rem 1.2rem; min-width: 0; opacity: 0.7; }
   .camera-switcher button.active { opacity: 1; background: #2a3b5a; border-color: #8ab4ff; }
@@ -302,6 +306,7 @@ async function loadFrames() {
   }
   applyRangeUI();
   buildPresets();
+  applyTimelineGradient();
 }
 
 function findIdxNearTime(dayIndices, hhmm) {
@@ -321,6 +326,34 @@ function applyPreset(lo, hi) {
   rangeHi = hi;
   applyRangeUI();
   resumeFromStart();
+}
+
+const SUNRISE_HALF = 30;
+const DAY_PAD = 30;
+const SUNSET_HEAD = 30;
+const SUNSET_TAIL = 60;
+const FRAME_TOL = 60;
+
+function hhmmToMin(hhmm) { const [a, b] = hhmm.split(':').map(Number); return a * 60 + b; }
+function findIdxAtMin(dayIndices, targetMin, tol = FRAME_TOL) {
+  let best = -1, bestDiff = Infinity;
+  for (const i of dayIndices) {
+    const [hh, mm] = frames[i].ts.slice(11).split(':').map(Number);
+    const min = hh * 60 + mm;
+    const diff = Math.abs(min - targetMin);
+    if (diff < bestDiff) { bestDiff = diff; best = i; }
+  }
+  return bestDiff <= tol ? best : -1;
+}
+
+function addPresetButton(label, cls, lo, hi) {
+  const btn = document.createElement('button');
+  if (cls) btn.className = cls;
+  btn.style.whiteSpace = 'pre-line';
+  btn.textContent = label;
+  btn.addEventListener('click', (e) => { e.stopPropagation(); applyPreset(lo, hi); });
+  btn.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
+  rangePresets.appendChild(btn);
 }
 
 function buildPresets() {
@@ -343,34 +376,47 @@ function buildPresets() {
   const days = Object.keys(byDay).sort();
   const todayKey = days[days.length - 1];
 
-  for (const day of days) {
+  for (let di = 0; di < days.length; di++) {
+    const day = days[di];
+    const dayIdx = byDay[day];
     const sun = sunTimes[day] || {};
-    if (!sun.sunrise) continue;
-    const sunriseIdx = findIdxNearTime(byDay[day], sun.sunrise);
-    if (sunriseIdx < 0) continue;
-
-    let hi, label, cls = '';
+    const sr = sun.sunrise ? hhmmToMin(sun.sunrise) : null;
+    const ss = sun.sunset  ? hhmmToMin(sun.sunset)  : null;
     const md = day.slice(5);
-    if (day === todayKey) {
-      hi = frames.length - 1;
-      label = `Today (${md})\nsunrise → NOW`;
-      cls = 'preset-today';
-    } else if (sun.sunset) {
-      const sunsetIdx = findIdxNearTime(byDay[day], sun.sunset);
-      if (sunsetIdx < 0) continue;
-      hi = sunsetIdx;
-      const daysAgo = days.length - 1 - days.indexOf(day);
-      const prefix = daysAgo === 1 ? 'Yesterday' : `${daysAgo} days ago`;
-      label = `${prefix} (${md})\nsunrise → sunset`;
-    } else continue;
 
-    const btn = document.createElement('button');
-    if (cls) btn.className = cls;
-    btn.style.whiteSpace = 'pre-line';
-    btn.textContent = label;
-    btn.addEventListener('click', (e) => { e.stopPropagation(); applyPreset(sunriseIdx, hi); });
-    btn.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
-    rangePresets.appendChild(btn);
+    if (sr !== null) {
+      const lo = findIdxAtMin(dayIdx, sr - SUNRISE_HALF);
+      const hi = findIdxAtMin(dayIdx, sr + SUNRISE_HALF);
+      if (lo >= 0 && hi >= 0 && lo < hi) addPresetButton(`${md} sunrise`, 'preset-sunrise', lo, hi);
+    }
+    if (sr !== null || ss !== null) {
+      const tryLo = sr !== null ? findIdxAtMin(dayIdx, sr + DAY_PAD, 240) : -1;
+      const tryHi = ss !== null ? findIdxAtMin(dayIdx, ss - DAY_PAD, 240) : -1;
+      const lo = tryLo >= 0 ? tryLo : dayIdx[0];
+      const hi = tryHi >= 0 ? tryHi : dayIdx[dayIdx.length - 1];
+      if (lo < hi) addPresetButton(`${md} day`, 'preset-day', lo, hi);
+    }
+    if (ss !== null) {
+      const lo = findIdxAtMin(dayIdx, ss - SUNSET_HEAD);
+      const hi = findIdxAtMin(dayIdx, ss + SUNSET_TAIL);
+      if (lo >= 0 && hi >= 0 && lo < hi) addPresetButton(`${md} sunset`, 'preset-sunset', lo, hi);
+    }
+    if (di < days.length - 1) {
+      const nextDay = days[di + 1];
+      const sunNext = sunTimes[nextDay] || {};
+      const srNext = sunNext.sunrise ? hhmmToMin(sunNext.sunrise) : null;
+      if (ss !== null && srNext !== null) {
+        const lo = findIdxAtMin(dayIdx, ss + SUNSET_TAIL);
+        const hi = findIdxAtMin(byDay[nextDay], srNext - SUNRISE_HALF);
+        if (lo >= 0 && hi >= 0 && lo < hi) addPresetButton(`${md}-${nextDay.slice(5)} night`, 'preset-night', lo, hi);
+      }
+    }
+  }
+
+  if (sunTimes[todayKey]?.sunrise) {
+    const sr = hhmmToMin(sunTimes[todayKey].sunrise);
+    const srIdx = findIdxAtMin(byDay[todayKey], sr, 240);
+    if (srIdx >= 0) addPresetButton(`Today (${todayKey.slice(5)})\nsunrise → NOW`, 'preset-today', srIdx, frames.length - 1);
   }
 
   const lastTsMs = new Date(frames[frames.length - 1].ts).getTime();
@@ -381,14 +427,52 @@ function buildPresets() {
   }
   if (hourIdx < frames.length - 1) {
     const startLabel = frames[hourIdx].ts.slice(11, 16);
-    const hourBtn = document.createElement('button');
-    hourBtn.className = 'preset-today';
-    hourBtn.style.whiteSpace = 'pre-line';
-    hourBtn.textContent = `Last hour\n${startLabel} → NOW`;
-    hourBtn.addEventListener('click', (e) => { e.stopPropagation(); applyPreset(hourIdx, frames.length - 1); });
-    hourBtn.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
-    rangePresets.appendChild(hourBtn);
+    addPresetButton(`Last hour\n${startLabel} → NOW`, 'preset-today', hourIdx, frames.length - 1);
   }
+}
+
+const SKY_STOPS = [
+  { m: 0,     c: [10, 16, 36] },
+  { m: 4 * 60, c: [22, 32, 70] },
+  { m: 5 * 60 + 30, c: [120, 70, 100] },
+  { m: 6 * 60 + 30, c: [220, 120, 80] },
+  { m: 8 * 60, c: [180, 200, 235] },
+  { m: 12 * 60, c: [155, 195, 240] },
+  { m: 17 * 60, c: [220, 165, 90] },
+  { m: 19 * 60, c: [200, 80, 70] },
+  { m: 20 * 60, c: [90, 40, 80] },
+  { m: 22 * 60, c: [26, 18, 50] },
+  { m: 1440,  c: [10, 16, 36] },
+];
+function timeColor(minute) {
+  for (let i = 0; i < SKY_STOPS.length - 1; i++) {
+    const a = SKY_STOPS[i], b = SKY_STOPS[i + 1];
+    if (minute >= a.m && minute <= b.m) {
+      const t = (minute - a.m) / (b.m - a.m || 1);
+      const r = Math.round(a.c[0] + (b.c[0] - a.c[0]) * t);
+      const g = Math.round(a.c[1] + (b.c[1] - a.c[1]) * t);
+      const bl = Math.round(a.c[2] + (b.c[2] - a.c[2]) * t);
+      return `rgb(${r},${g},${bl})`;
+    }
+  }
+  return 'rgb(10,16,36)';
+}
+function buildTimelineGradient() {
+  if (frames.length < 2) return '#1f2630';
+  const steps = 80;
+  const stops = [];
+  for (let i = 0; i <= steps; i++) {
+    const idx = Math.min(frames.length - 1, Math.round((i / steps) * (frames.length - 1)));
+    const t = frames[idx].ts.slice(11);
+    const [hh, mm] = t.split(':').map(Number);
+    stops.push(`${timeColor(hh * 60 + mm)} ${(i * 100 / steps).toFixed(1)}%`);
+  }
+  return `linear-gradient(to right, ${stops.join(',')})`;
+}
+function applyTimelineGradient() {
+  const track = document.querySelector('.rangebar .track');
+  if (!track) return;
+  track.style.background = buildTimelineGradient();
 }
 
 async function loadSunTimes() {

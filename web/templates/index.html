@@ -17,6 +17,10 @@
   .sidebar button { width: 100%; text-align: left; font-size: 0.85rem; padding: 0.55rem 0.7rem; }
   .sidebar .preset-everything { background: #2a3b5a; }
   .sidebar .preset-today { background: #2d4a2d; }
+  .sidebar .preset-sunrise { border-color: #d6a14b; }
+  .sidebar .preset-day { border-color: #6a7c8a; }
+  .sidebar .preset-sunset { border-color: #c2614e; }
+  .sidebar .preset-night { border-color: #3a4f7a; background: #161a26; }
   .camera-switcher { position: fixed; top: 0.5rem; right: 0.5rem; display: flex; flex-direction: column; gap: 0.3rem; z-index: 100; }
   .camera-switcher button { font-size: 0.8rem; padding: 0.4rem 0.8rem; opacity: 0.6; }
   .camera-switcher button.active { opacity: 1; background: #2a3b5a; border-color: #8ab4ff; }
@@ -37,12 +41,12 @@
   .rangebar .anchors span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
   .rangebar .dual { position: relative; height: 24px; }
   .rangebar .track { position: absolute; top: 10px; left: 0; right: 0; height: 4px; background: #1f2630; border-radius: 2px; }
-  .rangebar .selected { position: absolute; top: 0; height: 100%; background: #8ab4ff; border-radius: 2px; }
+  .rangebar .selected { position: absolute; top: 0; height: 100%; background: rgba(255,255,255,0.28); border-radius: 2px; box-shadow: 0 0 0 1px rgba(255,255,255,0.45) inset; }
   .rangebar .daymarks { position: absolute; top: 6px; left: 0; right: 0; height: 12px; pointer-events: none; }
   .rangebar .daymarks span { position: absolute; top: 0; width: 1px; height: 12px; background: #455; }
   .rangebar input[type=range] { position: absolute; top: 4px; left: 0; width: 100%; height: 16px; background: transparent; appearance: none; pointer-events: none; margin: 0; }
-  .rangebar input[type=range]::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #e6e9ef; border: 2px solid #8ab4ff; cursor: pointer; pointer-events: auto; }
-  .rangebar input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: #e6e9ef; border: 2px solid #8ab4ff; cursor: pointer; pointer-events: auto; }
+  .rangebar input[type=range]::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #e6e9ef; border: 2px solid #ffd76a; cursor: pointer; pointer-events: auto; }
+  .rangebar input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: #e6e9ef; border: 2px solid #ffd76a; cursor: pointer; pointer-events: auto; }
   .rangebar input[type=range]::-webkit-slider-runnable-track { background: transparent; }
   .rangebar input[type=range]::-moz-range-track { background: transparent; }
 </style>
@@ -211,6 +215,7 @@ async function loadFrames() {
   updateSaveLink();
   if (lastHourLock) applyLastHour(false);
   buildPresets();
+  applyTimelineGradient();
 }
 
 function findIdxNearTime(dayIndices, hhmm) {
@@ -256,6 +261,32 @@ function applyLastHour(fromClick) {
   if (fromClick) resumeFromStart();
 }
 
+const SUNRISE_HALF = 30;
+const DAY_PAD = 30;
+const SUNSET_HEAD = 30;
+const SUNSET_TAIL = 60;
+const FRAME_TOL = 60;
+
+function hhmmToMin(hhmm) { const [a, b] = hhmm.split(':').map(Number); return a * 60 + b; }
+function findIdxAtMin(dayIndices, targetMin, tol = FRAME_TOL) {
+  let best = -1, bestDiff = Infinity;
+  for (const i of dayIndices) {
+    const [hh, mm] = frames[i].ts.slice(11).split(':').map(Number);
+    const min = hh * 60 + mm;
+    const diff = Math.abs(min - targetMin);
+    if (diff < bestDiff) { bestDiff = diff; best = i; }
+  }
+  return bestDiff <= tol ? best : -1;
+}
+
+function addPresetButton(label, cls, lo, hi) {
+  const btn = document.createElement('button');
+  if (cls) btn.className = cls;
+  btn.textContent = label;
+  btn.addEventListener('click', () => applyPreset(lo, hi));
+  rangePresets.appendChild(btn);
+}
+
 function buildPresets() {
   rangePresets.innerHTML = '';
   if (!frames.length) return;
@@ -275,32 +306,51 @@ function buildPresets() {
   const days = Object.keys(byDay).sort();
   const todayKey = days[days.length - 1];
 
-  for (const day of days) {
+  for (let di = 0; di < days.length; di++) {
+    const day = days[di];
+    const dayIdx = byDay[day];
     const sun = sunTimes[day] || {};
-    if (!sun.sunrise) continue;
-    const sunriseIdx = findIdxNearTime(byDay[day], sun.sunrise);
-    if (sunriseIdx < 0) continue;
-
-    let hi, label, cls = '';
+    const sr = sun.sunrise ? hhmmToMin(sun.sunrise) : null;
+    const ss = sun.sunset  ? hhmmToMin(sun.sunset)  : null;
     const md = day.slice(5);
-    if (day === todayKey) {
-      hi = frames.length - 1;
-      label = `Today (${md}): sunrise → NOW`;
-      cls = 'preset-today';
-    } else if (sun.sunset) {
-      const sunsetIdx = findIdxNearTime(byDay[day], sun.sunset);
-      if (sunsetIdx < 0) continue;
-      hi = sunsetIdx;
-      const daysAgo = days.length - 1 - days.indexOf(day);
-      const prefix = daysAgo === 1 ? 'Yesterday' : `${daysAgo} days ago`;
-      label = `${prefix} (${md}): sunrise → sunset`;
-    } else continue;
 
-    const btn = document.createElement('button');
-    if (cls) btn.className = cls;
-    btn.textContent = label;
-    btn.addEventListener('click', () => applyPreset(sunriseIdx, hi));
-    rangePresets.appendChild(btn);
+    if (sr !== null) {
+      const lo = findIdxAtMin(dayIdx, sr - SUNRISE_HALF);
+      const hi = findIdxAtMin(dayIdx, sr + SUNRISE_HALF);
+      if (lo >= 0 && hi >= 0 && lo < hi) addPresetButton(`${md} sunrise`, 'preset-sunrise', lo, hi);
+    }
+
+    if (sr !== null || ss !== null) {
+      const tryLo = sr !== null ? findIdxAtMin(dayIdx, sr + DAY_PAD, 240) : -1;
+      const tryHi = ss !== null ? findIdxAtMin(dayIdx, ss - DAY_PAD, 240) : -1;
+      const lo = tryLo >= 0 ? tryLo : dayIdx[0];
+      const hi = tryHi >= 0 ? tryHi : dayIdx[dayIdx.length - 1];
+      if (lo < hi) addPresetButton(`${md} day`, 'preset-day', lo, hi);
+    }
+
+    if (ss !== null) {
+      const lo = findIdxAtMin(dayIdx, ss - SUNSET_HEAD);
+      const hi = findIdxAtMin(dayIdx, ss + SUNSET_TAIL);
+      if (lo >= 0 && hi >= 0 && lo < hi) addPresetButton(`${md} sunset`, 'preset-sunset', lo, hi);
+    }
+
+    if (di < days.length - 1) {
+      const nextDay = days[di + 1];
+      const sunNext = sunTimes[nextDay] || {};
+      const ssNow = ss;
+      const srNext = sunNext.sunrise ? hhmmToMin(sunNext.sunrise) : null;
+      if (ssNow !== null && srNext !== null) {
+        const lo = findIdxAtMin(dayIdx, ssNow + SUNSET_TAIL);
+        const hi = findIdxAtMin(byDay[nextDay], srNext - SUNRISE_HALF);
+        if (lo >= 0 && hi >= 0 && lo < hi) addPresetButton(`${md}-${nextDay.slice(5)} night`, 'preset-night', lo, hi);
+      }
+    }
+  }
+
+  if (sunTimes[todayKey]?.sunrise) {
+    const sr = hhmmToMin(sunTimes[todayKey].sunrise);
+    const srIdx = findIdxAtMin(byDay[todayKey], sr, 240);
+    if (srIdx >= 0) addPresetButton(`Today (${todayKey.slice(5)}): sunrise → NOW`, 'preset-today', srIdx, frames.length - 1);
   }
 
   const hourIdx = computeLastHourIdx();
@@ -322,6 +372,50 @@ function buildPresets() {
     });
     rangePresets.appendChild(hourBtn);
   }
+}
+
+const SKY_STOPS = [
+  { m: 0,     c: [10, 16, 36] },
+  { m: 4 * 60, c: [22, 32, 70] },
+  { m: 5 * 60 + 30, c: [120, 70, 100] },
+  { m: 6 * 60 + 30, c: [220, 120, 80] },
+  { m: 8 * 60, c: [180, 200, 235] },
+  { m: 12 * 60, c: [155, 195, 240] },
+  { m: 17 * 60, c: [220, 165, 90] },
+  { m: 19 * 60, c: [200, 80, 70] },
+  { m: 20 * 60, c: [90, 40, 80] },
+  { m: 22 * 60, c: [26, 18, 50] },
+  { m: 1440,  c: [10, 16, 36] },
+];
+function timeColor(minute) {
+  for (let i = 0; i < SKY_STOPS.length - 1; i++) {
+    const a = SKY_STOPS[i], b = SKY_STOPS[i + 1];
+    if (minute >= a.m && minute <= b.m) {
+      const t = (minute - a.m) / (b.m - a.m || 1);
+      const r = Math.round(a.c[0] + (b.c[0] - a.c[0]) * t);
+      const g = Math.round(a.c[1] + (b.c[1] - a.c[1]) * t);
+      const bl = Math.round(a.c[2] + (b.c[2] - a.c[2]) * t);
+      return `rgb(${r},${g},${bl})`;
+    }
+  }
+  return 'rgb(10,16,36)';
+}
+function buildTimelineGradient() {
+  if (frames.length < 2) return '#1f2630';
+  const steps = 80;
+  const stops = [];
+  for (let i = 0; i <= steps; i++) {
+    const idx = Math.min(frames.length - 1, Math.round((i / steps) * (frames.length - 1)));
+    const t = frames[idx].ts.slice(11);
+    const [hh, mm] = t.split(':').map(Number);
+    stops.push(`${timeColor(hh * 60 + mm)} ${(i * 100 / steps).toFixed(1)}%`);
+  }
+  return `linear-gradient(to right, ${stops.join(',')})`;
+}
+function applyTimelineGradient() {
+  const track = document.querySelector('.rangebar .track');
+  if (!track) return;
+  track.style.background = buildTimelineGradient();
 }
 
 function computeAnchors() {
