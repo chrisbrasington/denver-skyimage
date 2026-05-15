@@ -644,6 +644,7 @@ async function buildCameraSwitcher() {
   await buildCameraSwitcher();
   await loadSunTimes();
   await loadFrames();
+  if (TOUCH_MODE && frames.length) applyIdleReset();
   if (frames.length) show(idx);
   restartTimer();
   setInterval(async () => { await loadSunTimes(); await loadFrames(); }, 30000);
