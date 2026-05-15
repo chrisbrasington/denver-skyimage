@@ -228,11 +228,13 @@ function findIdxNearTime(dayIndices, hhmm) {
 let lastHourLock = false;
 
 function applyPreset(lo, hi) {
+  const wasLocked = lastHourLock;
   lastHourLock = false;
   rangeLo = lo;
   rangeHi = hi;
   applyRangeUI();
   resumeFromStart();
+  if (wasLocked) buildPresets();
 }
 
 function computeLastHourIdx() {
