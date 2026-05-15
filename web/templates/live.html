@@ -425,7 +425,7 @@ function buildPresets() {
 
   if (sunTimes[todayKey]?.sunrise) {
     const sr = hhmmToMin(sunTimes[todayKey].sunrise);
-    const srIdx = findIdxAtMin(byDay[todayKey], sr, 240);
+    const srIdx = findIdxAtMin(byDay[todayKey], sr - SUNRISE_HEAD, 240);
     if (srIdx >= 0) addPresetButton(`Today (${fmtMD(todayKey)})\nsunrise → NOW`, 'preset-today', srIdx, frames.length - 1);
   }
 
@@ -714,7 +714,8 @@ function findAnchorFor(day, kind) {
   const sun = sunTimes[day];
   if (!sun || !sun[kind]) return -1;
   const [th, tm] = sun[kind].split(':').map(Number);
-  const target = th * 60 + tm;
+  let target = th * 60 + tm;
+  if (kind === 'sunrise') target -= SUNRISE_HEAD;
   let best = -1, bestDiff = Infinity;
   for (let i = 0; i < frames.length; i++) {
     if (frames[i].ts.slice(0, 10) !== day) continue;

@@ -359,7 +359,7 @@ function buildPresets() {
 
   if (sunTimes[todayKey]?.sunrise) {
     const sr = hhmmToMin(sunTimes[todayKey].sunrise);
-    const srIdx = findIdxAtMin(byDay[todayKey], sr, 240);
+    const srIdx = findIdxAtMin(byDay[todayKey], sr - SUNRISE_HEAD, 240);
     if (srIdx >= 0) addPresetButton(`Today (${fmtMD(todayKey)}): sunrise → NOW`, 'preset-today', srIdx, frames.length - 1);
   }
 
