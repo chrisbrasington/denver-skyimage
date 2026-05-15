@@ -143,6 +143,7 @@ let rangeHi = 0;
 let resetPending = false;
 let idleTimer = null;
 let fsTimer = null;
+let presetActive = false;
 
 const img = document.getElementById('frame');
 const stage = document.getElementById('stage');
@@ -351,7 +352,11 @@ function addPresetButton(label, cls, lo, hi) {
   if (cls) btn.className = cls;
   btn.style.whiteSpace = 'pre-line';
   btn.textContent = label;
-  btn.addEventListener('click', (e) => { e.stopPropagation(); applyPreset(lo, hi); });
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    presetActive = true;
+    applyPreset(lo, hi);
+  });
   btn.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
   rangePresets.appendChild(btn);
 }
@@ -703,6 +708,7 @@ function findAnchorFor(day, kind) {
 
 function applyIdleReset() {
   if (!frames.length) return;
+  presetActive = false;
   const today = frames[frames.length - 1].ts.slice(0, 10);
   const days = Object.keys(sunTimes).sort();
   const todayIdx = days.indexOf(today);
