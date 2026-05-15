@@ -184,6 +184,7 @@ async function loadFrames() {
   }
   applyRangeUI();
   updateSaveLink();
+  if (lastHourLock) applyLastHour(false);
   buildPresets();
 }
 
@@ -199,11 +200,33 @@ function findIdxNearTime(dayIndices, hhmm) {
   return bestDiff <= 120 ? best : -1;
 }
 
+let lastHourLock = false;
+
 function applyPreset(lo, hi) {
+  lastHourLock = false;
   rangeLo = lo;
   rangeHi = hi;
   applyRangeUI();
   resumeFromStart();
+}
+
+function computeLastHourIdx() {
+  if (frames.length < 2) return -1;
+  const lastTsMs = new Date(frames[frames.length - 1].ts).getTime();
+  const targetMs = lastTsMs - 60 * 60 * 1000;
+  for (let i = frames.length - 1; i >= 0; i--) {
+    if (new Date(frames[i].ts).getTime() <= targetMs) return i;
+  }
+  return -1;
+}
+
+function applyLastHour(fromClick) {
+  const idxLo = computeLastHourIdx();
+  if (idxLo < 0 || idxLo >= frames.length - 1) return;
+  rangeLo = idxLo;
+  rangeHi = frames.length - 1;
+  applyRangeUI();
+  if (fromClick) resumeFromStart();
 }
 
 function buildPresets() {
@@ -253,18 +276,23 @@ function buildPresets() {
     rangePresets.appendChild(btn);
   }
 
-  const lastTsMs = new Date(frames[frames.length - 1].ts).getTime();
-  const targetMs = lastTsMs - 60 * 60 * 1000;
-  let hourIdx = 0;
-  for (let i = frames.length - 1; i >= 0; i--) {
-    if (new Date(frames[i].ts).getTime() <= targetMs) { hourIdx = i; break; }
-  }
-  if (hourIdx < frames.length - 1) {
+  const hourIdx = computeLastHourIdx();
+  if (hourIdx >= 0 && hourIdx < frames.length - 1) {
     const startLabel = frames[hourIdx].ts.slice(11, 16);
     const hourBtn = document.createElement('button');
     hourBtn.className = 'preset-today';
-    hourBtn.textContent = `Last hour (${startLabel} → NOW)`;
-    hourBtn.addEventListener('click', () => applyPreset(hourIdx, frames.length - 1));
+    const lockGlyph = lastHourLock ? '🔒 ' : '';
+    hourBtn.textContent = `${lockGlyph}Last hour (${startLabel} → NOW)`;
+    hourBtn.addEventListener('click', () => {
+      if (lastHourLock) {
+        lastHourLock = false;
+        buildPresets();
+        return;
+      }
+      lastHourLock = true;
+      applyLastHour(true);
+      buildPresets();
+    });
     rangePresets.appendChild(hourBtn);
   }
 }
