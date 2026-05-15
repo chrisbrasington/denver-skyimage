@@ -100,6 +100,7 @@ const rangeStartLabel = document.getElementById('rangeStartLabel');
 const rangeEndLabel = document.getElementById('rangeEndLabel');
 
 let anchors = [];
+let sunTimes = {};
 let shiftDown = false;
 let rangeLo = 0;
 let rangeHi = 0;
@@ -159,15 +160,15 @@ function computeAnchors() {
     if (!byDay[day]) byDay[day] = [];
     byDay[day].push({ i, ts: f.ts });
   });
-  const targets = [
-    { h: 0, m: 0, suffix: '' },
-    { h: 5, m: 40, suffix: ' sunrise' },
-    { h: 20, m: 0, suffix: ' sunset' },
-  ];
   for (const day of Object.keys(byDay)) {
     const monthDay = day.slice(5);
+    const sun = sunTimes[day] || {};
+    const targets = [{ time: '00:00', suffix: '' }];
+    if (sun.sunrise) targets.push({ time: sun.sunrise, suffix: ' sunrise' });
+    if (sun.sunset) targets.push({ time: sun.sunset, suffix: ' sunset' });
     for (const t of targets) {
-      const targetMin = t.h * 60 + t.m;
+      const [th, tm] = t.time.split(':').map(Number);
+      const targetMin = th * 60 + tm;
       let best = null, bestDiff = Infinity;
       for (const f of byDay[day]) {
         const [hh, mm] = f.ts.slice(11).split(':').map(Number);
@@ -182,6 +183,17 @@ function computeAnchors() {
   }
   anchors.sort((a, b) => a.idx - b.idx);
   renderAnchors();
+}
+
+async function loadSunTimes() {
+  try {
+    const r = await fetch('/api/anchors');
+    const data = await r.json();
+    sunTimes = {};
+    for (const d of data) sunTimes[d.day] = { sunrise: d.sunrise, sunset: d.sunset };
+  } catch (e) {
+    console.warn('sun times failed', e);
+  }
 }
 
 function renderAnchors() {
@@ -354,11 +366,12 @@ fpsInput.addEventListener('change', () => {
 });
 
 (async () => {
+  await loadSunTimes();
   await loadFrames();
   await loadDays();
   if (frames.length) show(idx);
   restartTimer();
-  setInterval(loadFrames, 30000);
+  setInterval(async () => { await loadSunTimes(); await loadFrames(); }, 30000);
   setInterval(loadDays, 60000);
 })();
 </script>

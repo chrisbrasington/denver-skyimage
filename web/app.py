@@ -3,13 +3,19 @@ import re
 import tempfile
 from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import cv2
+from astral import LocationInfo
+from astral.sun import sun
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 
 IMAGE_DIR = Path(os.environ.get("IMAGE_DIR", "/data/images"))
+DENVER = LocationInfo("Denver", "USA", "America/Denver", 39.7392, -104.9903)
+UTC_TZ = ZoneInfo("UTC")
+LOCAL_TZ = ZoneInfo("America/Denver")
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 TIMESTAMP_RE = re.compile(r"^(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})\.jpg$")
 
@@ -25,10 +31,11 @@ def list_frames():
         if not m:
             continue
         try:
-            ts = datetime.strptime(m.group(1), "%Y-%m-%d_%H-%M-%S")
+            ts_utc = datetime.strptime(m.group(1), "%Y-%m-%d_%H-%M-%S").replace(tzinfo=UTC_TZ)
         except ValueError:
             continue
-        frames.append((ts, p.name))
+        ts_local = ts_utc.astimezone(LOCAL_TZ).replace(tzinfo=None)
+        frames.append((ts_local, p.name))
     frames.sort(key=lambda x: x[0])
     return frames
 
@@ -58,6 +65,24 @@ def api_frames(since: str | None = None):
     return JSONResponse([
         {"name": name, "ts": ts.isoformat()} for ts, name in frames
     ])
+
+
+@app.get("/api/anchors")
+def api_anchors():
+    frames = list_frames()
+    days = sorted({ts.date() for ts, _ in frames})
+    out = []
+    for d in days:
+        try:
+            s = sun(DENVER.observer, date=d, tzinfo=DENVER.timezone)
+            out.append({
+                "day": d.isoformat(),
+                "sunrise": s["sunrise"].strftime("%H:%M"),
+                "sunset": s["sunset"].strftime("%H:%M"),
+            })
+        except Exception:
+            continue
+    return out
 
 
 @app.get("/api/days")
