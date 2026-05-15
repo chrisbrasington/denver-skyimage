@@ -101,11 +101,16 @@ function toggleFullscreen() {
 fsBtn.addEventListener('click', toggleFullscreen);
 
 document.addEventListener('keydown', (e) => {
-  if (e.key !== 'f' && e.key !== 'F') return;
   const t = e.target;
   if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA')) return;
-  e.preventDefault();
-  toggleFullscreen();
+  if (e.key === 'f' || e.key === 'F') {
+    e.preventDefault();
+    toggleFullscreen();
+  } else if (e.key === 'p' || e.key === 'P' || e.key === ' ') {
+    e.preventDefault();
+    playing = !playing;
+    playBtn.textContent = playing ? 'Pause' : 'Play';
+  }
 });
 
 async function loadFrames() {
