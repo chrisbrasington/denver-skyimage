@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Denver Sky — Live</title>
+<style>
+  * { box-sizing: border-box; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: #0b0d12; color: #e6e9ef; font-family: system-ui, sans-serif; overflow: hidden; }
+  body { display: flex; flex-direction: column; }
+  .stage { flex: 1; display: flex; justify-content: center; align-items: center; padding: 0; background: #0b0d12; cursor: pointer; min-height: 0; }
+  .stage img { max-width: 100%; max-height: 100%; box-shadow: 0 0 30px #000; }
+  .stage:fullscreen { padding: 0; }
+  .stage:fullscreen img { max-height: 100vh; max-width: 100vw; box-shadow: none; }
+
+  .bottombar { background: #0b0d12; border-top: 2px solid #222; padding: 1.25rem 1.5rem 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+  .row { display: flex; gap: 1.25rem; align-items: center; }
+  .row .slot { flex: 1; min-width: 0; }
+  .slabel { font-size: 1.4rem; color: #8ab4ff; min-width: 9rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+  button { background: #1f2630; color: #e6e9ef; border: 2px solid #444; padding: 0.9rem 1.6rem; border-radius: 8px; cursor: pointer; font-size: 1.3rem; min-width: 7rem; }
+  button:active { background: #2a3340; }
+  .ts { font-variant-numeric: tabular-nums; min-width: 22ch; font-size: 1.3rem; }
+
+  .rangebar { width: 100%; }
+  .rangebar .ticks { display: flex; justify-content: space-between; font-size: 1.1rem; color: #aab; margin-bottom: 0.4rem; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .rangebar .anchors { position: relative; height: 22px; font-size: 0.95rem; color: #99a; font-variant-numeric: tabular-nums; pointer-events: none; }
+  .rangebar .anchors span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+  .rangebar .dual { position: relative; height: 44px; }
+  .rangebar .track { position: absolute; top: 18px; left: 0; right: 0; height: 8px; background: #1f2630; border-radius: 4px; }
+  .rangebar .selected { position: absolute; top: 0; height: 100%; background: #8ab4ff; border-radius: 4px; }
+  .rangebar .daymarks { position: absolute; top: 12px; left: 0; right: 0; height: 20px; pointer-events: none; }
+  .rangebar .daymarks span { position: absolute; top: 0; width: 2px; height: 20px; background: #455; }
+  .rangebar input[type=range] { position: absolute; top: 8px; left: 0; width: 100%; height: 28px; background: transparent; appearance: none; pointer-events: none; margin: 0; }
+  .rangebar input[type=range]::-webkit-slider-thumb { appearance: none; width: 32px; height: 32px; border-radius: 50%; background: #e6e9ef; border: 3px solid #8ab4ff; cursor: pointer; pointer-events: auto; }
+  .rangebar input[type=range]::-moz-range-thumb { width: 32px; height: 32px; border-radius: 50%; background: #e6e9ef; border: 3px solid #8ab4ff; cursor: pointer; pointer-events: auto; }
+  .rangebar input[type=range]::-webkit-slider-runnable-track { background: transparent; }
+  .rangebar input[type=range]::-moz-range-track { background: transparent; }
+
+  .seekbar { width: 100%; height: 28px; appearance: none; background: transparent; }
+  .seekbar::-webkit-slider-runnable-track { height: 8px; background: #1f2630; border-radius: 4px; }
+  .seekbar::-moz-range-track { height: 8px; background: #1f2630; border-radius: 4px; }
+  .seekbar::-webkit-slider-thumb { appearance: none; width: 28px; height: 28px; border-radius: 50%; background: #e6e9ef; border: 3px solid #8ab4ff; margin-top: -10px; }
+  .seekbar::-moz-range-thumb { width: 28px; height: 28px; border-radius: 50%; background: #e6e9ef; border: 3px solid #8ab4ff; }
+</style>
+</head>
+<body>
+<div class="stage" id="stage"><img id="frame" alt="sky"></div>
+<div class="bottombar">
+  <div class="row">
+    <span class="slabel">Range</span>
+    <div class="slot">
+      <div class="rangebar">
+        <div class="ticks">
+          <span id="rangeStartLabel">--</span>
+          <span id="rangeEndLabel">--</span>
+        </div>
+        <div class="anchors" id="anchorLabels"></div>
+        <div class="dual">
+          <div class="track"><div class="selected" id="selBar"></div></div>
+          <div class="daymarks" id="dayMarks"></div>
+          <input type="range" id="rangeMin" min="0" max="0" value="0">
+          <input type="range" id="rangeMax" min="0" max="0" value="0">
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="row">
+    <span class="slabel">Playback</span>
+    <button id="playBtn">Pause</button>
+    <span class="ts" id="tsLabel">--</span>
+    <div class="slot"><input type="range" id="seek" class="seekbar" min="0" max="0" value="0"></div>
+  </div>
+</div>
+<script>
+const FPS = 10;
+const FS_DURATION_MS = 30000;
+const IDLE_MS = 120000;
+
+let frames = [];
+let idx = 0;
+let playing = true;
+let timer = null;
+let anchors = [];
+let sunTimes = {};
+let rangeLo = 0;
+let rangeHi = 0;
+let resetPending = false;
+let idleTimer = null;
+let fsTimer = null;
+
+const img = document.getElementById('frame');
+const stage = document.getElementById('stage');
+const seek = document.getElementById('seek');
+const tsLabel = document.getElementById('tsLabel');
+const playBtn = document.getElementById('playBtn');
+const rangeMin = document.getElementById('rangeMin');
+const rangeMax = document.getElementById('rangeMax');
+const selBar = document.getElementById('selBar');
+const dayMarks = document.getElementById('dayMarks');
+const anchorLabels = document.getElementById('anchorLabels');
+const rangeStartLabel = document.getElementById('rangeStartLabel');
+const rangeEndLabel = document.getElementById('rangeEndLabel');
+
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    (stage.requestFullscreen || stage.webkitRequestFullscreen)?.call(stage);
+    clearTimeout(fsTimer);
+    fsTimer = setTimeout(() => {
+      if (document.fullscreenElement) {
+        (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
+      }
+    }, FS_DURATION_MS);
+  } else {
+    clearTimeout(fsTimer);
+    (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
+  }
+}
+
+stage.addEventListener('click', toggleFullscreen);
+
+function resetIdle() {
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => { resetPending = true; }, IDLE_MS);
+}
+['touchstart', 'click', 'mousemove', 'keydown', 'input'].forEach(ev => {
+  window.addEventListener(ev, resetIdle, { passive: true });
+});
+resetIdle();
+
+async function loadFrames() {
+  const r = await fetch('/api/frames');
+  const data = await r.json();
+  const prevLen = frames.length;
+  const wasAtEnd = rangeHi === Math.max(0, prevLen - 1);
+  frames = data;
+  const max = Math.max(0, frames.length - 1);
+  rangeMin.max = max;
+  rangeMax.max = max;
+  computeAnchors();
+  if (prevLen === 0) {
+    rangeLo = 0;
+    rangeHi = max;
+    idx = max;
+  } else if (wasAtEnd) {
+    rangeHi = max;
+  }
+  applyRangeUI();
+}
+
+async function loadSunTimes() {
+  try {
+    const r = await fetch('/api/anchors');
+    const data = await r.json();
+    sunTimes = {};
+    for (const d of data) sunTimes[d.day] = { sunrise: d.sunrise, sunset: d.sunset };
+  } catch (e) { console.warn('sun times failed', e); }
+}
+
+function computeAnchors() {
+  anchors = [];
+  if (!frames.length) { renderAnchors(); return; }
+  const byDay = {};
+  frames.forEach((f, i) => {
+    const day = f.ts.slice(0, 10);
+    if (!byDay[day]) byDay[day] = [];
+    byDay[day].push({ i, ts: f.ts });
+  });
+  for (const day of Object.keys(byDay)) {
+    const monthDay = day.slice(5);
+    const sun = sunTimes[day] || {};
+    const targets = [{ time: '00:00', suffix: '' }];
+    if (sun.sunrise) targets.push({ time: sun.sunrise, suffix: ` sunrise ${sun.sunrise}` });
+    if (sun.sunset) targets.push({ time: sun.sunset, suffix: ` sunset ${sun.sunset}` });
+    for (const t of targets) {
+      const [th, tm] = t.time.split(':').map(Number);
+      const targetMin = th * 60 + tm;
+      let best = null, bestDiff = Infinity;
+      for (const f of byDay[day]) {
+        const [hh, mm] = f.ts.slice(11).split(':').map(Number);
+        const min = hh * 60 + mm;
+        const diff = Math.abs(min - targetMin);
+        if (diff < bestDiff) { bestDiff = diff; best = f; }
+      }
+      if (best && bestDiff <= 120) {
+        anchors.push({ idx: best.i, label: monthDay + t.suffix });
+      }
+    }
+  }
+  anchors.sort((a, b) => a.idx - b.idx);
+  renderAnchors();
+}
+
+function renderAnchors() {
+  dayMarks.innerHTML = '';
+  anchorLabels.innerHTML = '';
+  if (frames.length < 2) return;
+  const total = frames.length - 1;
+  for (const a of anchors) {
+    const pct = (a.idx / total) * 100;
+    const m = document.createElement('span');
+    m.style.left = `${pct}%`;
+    dayMarks.appendChild(m);
+    const lbl = document.createElement('span');
+    lbl.style.left = `${pct}%`;
+    lbl.textContent = a.label;
+    anchorLabels.appendChild(lbl);
+  }
+}
+
+function snapToDay(val) {
+  if (frames.length < 2) return val;
+  const tol = Math.max(2, Math.floor(frames.length * 0.01));
+  for (const a of anchors) {
+    if (Math.abs(val - a.idx) <= tol) return a.idx;
+  }
+  return val;
+}
+
+function applyRangeUI() {
+  if (frames.length < 2) {
+    selBar.style.left = '0%';
+    selBar.style.width = '100%';
+    rangeStartLabel.textContent = '--';
+    rangeEndLabel.textContent = '--';
+    return;
+  }
+  rangeMin.value = rangeLo;
+  rangeMax.value = rangeHi;
+  const total = frames.length - 1;
+  const loPct = (rangeLo / total) * 100;
+  const hiPct = (rangeHi / total) * 100;
+  selBar.style.left = `${loPct}%`;
+  selBar.style.width = `${hiPct - loPct}%`;
+  rangeStartLabel.textContent = frames[rangeLo].ts.replace('T', ' ');
+  const atCurrent = rangeHi === frames.length - 1;
+  rangeEndLabel.textContent = atCurrent
+    ? `CURRENT (${frames[rangeHi].ts.replace('T', ' ')})`
+    : frames[rangeHi].ts.replace('T', ' ');
+  rangeEndLabel.style.color = atCurrent ? '#7fd17a' : '#aab';
+  seek.min = rangeLo;
+  seek.max = rangeHi;
+  if (idx < rangeLo) idx = rangeLo;
+  if (idx > rangeHi) idx = rangeHi;
+}
+
+rangeMin.addEventListener('input', () => {
+  let v = parseInt(rangeMin.value, 10);
+  v = snapToDay(v);
+  if (v >= rangeHi) v = Math.max(0, rangeHi - 1);
+  rangeLo = v;
+  playing = false;
+  playBtn.textContent = 'Play';
+  applyRangeUI();
+  show(rangeLo);
+});
+
+rangeMax.addEventListener('input', () => {
+  let v = parseInt(rangeMax.value, 10);
+  v = snapToDay(v);
+  if (v <= rangeLo) v = Math.min(frames.length - 1, rangeLo + 1);
+  rangeHi = v;
+  playing = false;
+  playBtn.textContent = 'Play';
+  applyRangeUI();
+  show(rangeHi);
+});
+
+function resumeFromStart() {
+  idx = rangeLo;
+  show(idx);
+  playing = true;
+  playBtn.textContent = 'Pause';
+}
+
+rangeMin.addEventListener('change', resumeFromStart);
+rangeMax.addEventListener('change', resumeFromStart);
+
+function show(i) {
+  if (!frames.length) return;
+  idx = Math.max(rangeLo, Math.min(rangeHi, i));
+  const f = frames[idx];
+  img.src = `/image/${f.name}`;
+  tsLabel.textContent = f.ts.replace('T', ' ');
+  seek.value = idx;
+}
+
+function findAnchorFor(day, kind) {
+  const sun = sunTimes[day];
+  if (!sun || !sun[kind]) return -1;
+  const [th, tm] = sun[kind].split(':').map(Number);
+  const target = th * 60 + tm;
+  let best = -1, bestDiff = Infinity;
+  for (let i = 0; i < frames.length; i++) {
+    if (frames[i].ts.slice(0, 10) !== day) continue;
+    const [hh, mm] = frames[i].ts.slice(11).split(':').map(Number);
+    const diff = Math.abs(hh * 60 + mm - target);
+    if (diff < bestDiff) { bestDiff = diff; best = i; }
+  }
+  return bestDiff <= 120 ? best : -1;
+}
+
+function applyIdleReset() {
+  if (!frames.length) return;
+  const today = frames[frames.length - 1].ts.slice(0, 10);
+  const days = Object.keys(sunTimes).sort();
+  const todayIdx = days.indexOf(today);
+  const yesterday = todayIdx > 0 ? days[todayIdx - 1] : null;
+  let anchor = findAnchorFor(today, 'sunrise');
+  if (anchor < 0 && yesterday) anchor = findAnchorFor(yesterday, 'sunrise');
+  if (anchor < 0) anchor = 0;
+  rangeLo = anchor;
+  rangeHi = frames.length - 1;
+  applyRangeUI();
+  idx = rangeLo;
+  show(idx);
+  playing = true;
+  playBtn.textContent = 'Pause';
+}
+
+function tick() {
+  if (!playing || !frames.length) return;
+  if (idx >= rangeHi) {
+    if (resetPending) {
+      resetPending = false;
+      applyIdleReset();
+      return;
+    }
+    idx = rangeLo;
+  } else {
+    idx++;
+  }
+  show(idx);
+}
+
+function restartTimer() {
+  if (timer) clearInterval(timer);
+  timer = setInterval(tick, 1000 / FPS);
+}
+
+playBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  playing = !playing;
+  playBtn.textContent = playing ? 'Pause' : 'Play';
+});
+
+seek.addEventListener('input', () => {
+  playing = false;
+  playBtn.textContent = 'Play';
+  show(parseInt(seek.value, 10));
+});
+
+[rangeMin, rangeMax, seek, playBtn].forEach(el => {
+  el.addEventListener('click', e => e.stopPropagation());
+  el.addEventListener('touchstart', e => e.stopPropagation(), { passive: true });
+});
+
+(async () => {
+  await loadSunTimes();
+  await loadFrames();
+  if (frames.length) show(idx);
+  restartTimer();
+  setInterval(async () => { await loadSunTimes(); await loadFrames(); }, 30000);
+})();
+</script>
+</body>
+</html>
