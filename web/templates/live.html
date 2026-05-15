@@ -50,16 +50,16 @@
   .rangebar .daymarks { position: absolute; top: 12px; left: 0; right: 0; height: 20px; pointer-events: none; }
   .rangebar .daymarks span { position: absolute; top: 0; width: 2px; height: 20px; background: #455; }
   .rangebar input[type=range] { position: absolute; top: 8px; left: 0; width: 100%; height: 28px; background: transparent; appearance: none; pointer-events: none; margin: 0; }
-  .rangebar input[type=range]::-webkit-slider-thumb { appearance: none; width: 32px; height: 32px; border-radius: 50%; background: #e6e9ef; border: 3px solid #ffd76a; cursor: pointer; pointer-events: auto; }
-  .rangebar input[type=range]::-moz-range-thumb { width: 32px; height: 32px; border-radius: 50%; background: #e6e9ef; border: 3px solid #ffd76a; cursor: pointer; pointer-events: auto; }
+  .rangebar input[type=range]::-webkit-slider-thumb { appearance: none; width: 32px; height: 32px; border-radius: 50%; background: var(--thumb-color, #e6e9ef); border: 3px solid #ffd76a; box-shadow: 0 0 0 2px rgba(0,0,0,0.6); cursor: pointer; pointer-events: auto; }
+  .rangebar input[type=range]::-moz-range-thumb { width: 32px; height: 32px; border-radius: 50%; background: var(--thumb-color, #e6e9ef); border: 3px solid #ffd76a; box-shadow: 0 0 0 2px rgba(0,0,0,0.6); cursor: pointer; pointer-events: auto; }
   .rangebar input[type=range]::-webkit-slider-runnable-track { background: transparent; }
   .rangebar input[type=range]::-moz-range-track { background: transparent; }
 
   .seekbar { width: 100%; height: 28px; appearance: none; background: transparent; }
   .seekbar::-webkit-slider-runnable-track { height: 8px; background: #1f2630; border-radius: 4px; }
   .seekbar::-moz-range-track { height: 8px; background: #1f2630; border-radius: 4px; }
-  .seekbar::-webkit-slider-thumb { appearance: none; width: 28px; height: 28px; border-radius: 50%; background: #e6e9ef; border: 3px solid #ffd76a; margin-top: -10px; }
-  .seekbar::-moz-range-thumb { width: 28px; height: 28px; border-radius: 50%; background: #e6e9ef; border: 3px solid #ffd76a; }
+  .seekbar::-webkit-slider-thumb { appearance: none; width: 28px; height: 28px; border-radius: 50%; background: var(--thumb-color, #e6e9ef); border: 3px solid #ffd76a; box-shadow: 0 0 0 2px rgba(0,0,0,0.6); margin-top: -10px; }
+  .seekbar::-moz-range-thumb { width: 28px; height: 28px; border-radius: 50%; background: var(--thumb-color, #e6e9ef); border: 3px solid #ffd76a; box-shadow: 0 0 0 2px rgba(0,0,0,0.6); }
   .camera-switcher { position: fixed; top: 1rem; right: 1rem; display: flex; flex-direction: column; gap: 0.5rem; z-index: 100; }
   .camera-switcher button { font-size: 1.1rem; padding: 0.7rem 1.2rem; min-width: 0; opacity: 0.7; }
   .camera-switcher button.active { opacity: 1; background: #2a3b5a; border-color: #8ab4ff; }
@@ -329,13 +329,18 @@ function applyPreset(lo, hi) {
   resumeFromStart();
 }
 
-const SUNRISE_HALF = 30;
+const SUNRISE_HEAD = 30;
+const SUNRISE_TAIL = 60;
 const DAY_PAD = 30;
 const SUNSET_HEAD = 30;
 const SUNSET_TAIL = 60;
 const FRAME_TOL = 60;
 
 function hhmmToMin(hhmm) { const [a, b] = hhmm.split(':').map(Number); return a * 60 + b; }
+function fmtMD(day) {
+  const [, mo, d] = day.split('-');
+  return `${parseInt(mo, 10)}/${parseInt(d, 10)}`;
+}
 function findIdxAtMin(dayIndices, targetMin, tol = FRAME_TOL) {
   let best = -1, bestDiff = Infinity;
   for (const i of dayIndices) {
@@ -387,15 +392,15 @@ function buildPresets() {
     const sun = sunTimes[day] || {};
     const sr = sun.sunrise ? hhmmToMin(sun.sunrise) : null;
     const ss = sun.sunset  ? hhmmToMin(sun.sunset)  : null;
-    const md = day.slice(5);
+    const md = fmtMD(day);
 
     if (sr !== null) {
-      const lo = findIdxAtMin(dayIdx, sr - SUNRISE_HALF);
-      const hi = findIdxAtMin(dayIdx, sr + SUNRISE_HALF);
+      const lo = findIdxAtMin(dayIdx, sr - SUNRISE_HEAD);
+      const hi = findIdxAtMin(dayIdx, sr + SUNRISE_TAIL);
       if (lo >= 0 && hi >= 0 && lo < hi) addPresetButton(`${md} sunrise`, 'preset-sunrise', lo, hi);
     }
     if (sr !== null || ss !== null) {
-      const tryLo = sr !== null ? findIdxAtMin(dayIdx, sr + DAY_PAD, 240) : -1;
+      const tryLo = sr !== null ? findIdxAtMin(dayIdx, sr + SUNRISE_TAIL, 240) : -1;
       const tryHi = ss !== null ? findIdxAtMin(dayIdx, ss - DAY_PAD, 240) : -1;
       const lo = tryLo >= 0 ? tryLo : dayIdx[0];
       const hi = tryHi >= 0 ? tryHi : dayIdx[dayIdx.length - 1];
@@ -412,8 +417,8 @@ function buildPresets() {
       const srNext = sunNext.sunrise ? hhmmToMin(sunNext.sunrise) : null;
       if (ss !== null && srNext !== null) {
         const lo = findIdxAtMin(dayIdx, ss + SUNSET_TAIL);
-        const hi = findIdxAtMin(byDay[nextDay], srNext - SUNRISE_HALF);
-        if (lo >= 0 && hi >= 0 && lo < hi) addPresetButton(`${md}-${nextDay.slice(5)} night`, 'preset-night', lo, hi);
+        const hi = findIdxAtMin(byDay[nextDay], srNext - SUNRISE_HEAD);
+        if (lo >= 0 && hi >= 0 && lo < hi) addPresetButton(`Night ${md} → ${fmtMD(nextDay)}`, 'preset-night', lo, hi);
       }
     }
   }
@@ -421,7 +426,7 @@ function buildPresets() {
   if (sunTimes[todayKey]?.sunrise) {
     const sr = hhmmToMin(sunTimes[todayKey].sunrise);
     const srIdx = findIdxAtMin(byDay[todayKey], sr, 240);
-    if (srIdx >= 0) addPresetButton(`Today (${todayKey.slice(5)})\nsunrise → NOW`, 'preset-today', srIdx, frames.length - 1);
+    if (srIdx >= 0) addPresetButton(`Today (${fmtMD(todayKey)})\nsunrise → NOW`, 'preset-today', srIdx, frames.length - 1);
   }
 
   const lastTsMs = new Date(frames[frames.length - 1].ts).getTime();
@@ -478,6 +483,18 @@ function applyTimelineGradient() {
   const track = document.querySelector('.rangebar .track');
   if (!track) return;
   track.style.background = buildTimelineGradient();
+}
+function frameTimeColor(i) {
+  if (!frames.length || i < 0 || i >= frames.length) return '#e6e9ef';
+  const t = frames[i].ts.slice(11);
+  const [hh, mm] = t.split(':').map(Number);
+  return timeColor(hh * 60 + mm);
+}
+function updateThumbColors() {
+  if (!frames.length) return;
+  rangeMin.style.setProperty('--thumb-color', frameTimeColor(rangeLo));
+  rangeMax.style.setProperty('--thumb-color', frameTimeColor(rangeHi));
+  seek.style.setProperty('--thumb-color', frameTimeColor(idx));
 }
 
 async function loadSunTimes() {
@@ -574,6 +591,7 @@ function applyRangeUI() {
   seek.max = rangeHi;
   if (idx < rangeLo) idx = rangeLo;
   if (idx > rangeHi) idx = rangeHi;
+  updateThumbColors();
 }
 
 rangeMin.addEventListener('input', () => {
@@ -688,6 +706,7 @@ function show(i) {
   img.src = imgUrl(f.name);
   tsLabel.textContent = f.ts.replace('T', ' ');
   seek.value = idx;
+  seek.style.setProperty('--thumb-color', frameTimeColor(idx));
   updateTimeLabel(f.ts);
 }
 
