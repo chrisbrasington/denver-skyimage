@@ -322,17 +322,29 @@ function fadeOutDialog(el) {
   setTimeout(() => el.remove(), EVENT_FADE_OUT_MS + 100);
 }
 
-function spawnEventDialog(ev) {
-  const dialog = document.createElement('div');
-  dialog.className = 'event-dialog';
-  dialog.dataset.eventId = ev.id;
-  dialog.textContent = ev.message;
+function positionDialog(dialog, ev) {
   const imgRect = img.getBoundingClientRect();
   const stageRect = stage.getBoundingClientRect();
   const xpx = imgRect.left - stageRect.left + ev.x_pct * imgRect.width;
   const ypx = imgRect.top - stageRect.top + ev.y_pct * imgRect.height;
   dialog.style.left = `${xpx}px`;
   dialog.style.top = `${ypx - 14}px`;
+}
+function repositionAllDialogs() {
+  for (const d of stage.querySelectorAll('.event-dialog')) {
+    const ev = events.find(e => e.id === d.dataset.eventId);
+    if (ev) positionDialog(d, ev);
+  }
+}
+window.addEventListener('resize', repositionAllDialogs);
+document.addEventListener('fullscreenchange', repositionAllDialogs);
+
+function spawnEventDialog(ev) {
+  const dialog = document.createElement('div');
+  dialog.className = 'event-dialog';
+  dialog.dataset.eventId = ev.id;
+  dialog.textContent = ev.message;
+  positionDialog(dialog, ev);
   stage.appendChild(dialog);
   requestAnimationFrame(() => dialog.classList.add('shown'));
   const t = setTimeout(() => {
