@@ -58,8 +58,12 @@ def browse(request: Request):
 
 
 @app.get("/live", response_class=HTMLResponse)
-@app.get("/touch", response_class=HTMLResponse)
 def live(request: Request):
+    return TEMPLATES.TemplateResponse(request, "live.html")
+
+
+@app.get("/touch", response_class=HTMLResponse)
+def touch(request: Request):
     return TEMPLATES.TemplateResponse(request, "live.html")
 
 
