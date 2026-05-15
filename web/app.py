@@ -57,6 +57,12 @@ def browse(request: Request):
     return TEMPLATES.TemplateResponse(request, "browse.html")
 
 
+@app.get("/live", response_class=HTMLResponse)
+@app.get("/touch", response_class=HTMLResponse)
+def live(request: Request):
+    return TEMPLATES.TemplateResponse(request, "live.html")
+
+
 @app.get("/api/frames")
 def api_frames(since: str | None = None):
     frames = list_frames()
