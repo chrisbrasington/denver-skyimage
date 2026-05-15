@@ -41,9 +41,13 @@
   .seekbar::-moz-range-track { height: 8px; background: #1f2630; border-radius: 4px; }
   .seekbar::-webkit-slider-thumb { appearance: none; width: 28px; height: 28px; border-radius: 50%; background: #e6e9ef; border: 3px solid #8ab4ff; margin-top: -10px; }
   .seekbar::-moz-range-thumb { width: 28px; height: 28px; border-radius: 50%; background: #e6e9ef; border: 3px solid #8ab4ff; }
+  .camera-switcher { position: fixed; top: 1rem; right: 1rem; display: flex; flex-direction: column; gap: 0.5rem; z-index: 100; }
+  .camera-switcher button { font-size: 1.1rem; padding: 0.7rem 1.2rem; min-width: 0; opacity: 0.7; }
+  .camera-switcher button.active { opacity: 1; background: #2a3b5a; border-color: #8ab4ff; }
 </style>
 </head>
 <body>
+<div class="camera-switcher" id="cameraSwitcher"></div>
 <div class="stage" id="stage"><img id="frame" alt="sky"></div>
 <div class="bottombar">
   <div class="row">
@@ -396,7 +400,35 @@ seek.addEventListener('change', () => {
   el.addEventListener('touchstart', e => e.stopPropagation(), { passive: true });
 });
 
+async function buildCameraSwitcher() {
+  try {
+    const r = await fetch('/api/cameras');
+    const data = await r.json();
+    const cams = data.cameras || [];
+    const def = data.default;
+    if (cams.length <= 1) return;
+    const container = document.getElementById('cameraSwitcher');
+    container.innerHTML = '';
+    const active = CAMERA || def;
+    for (const name of cams) {
+      const btn = document.createElement('button');
+      btn.textContent = name;
+      if (name === active) btn.classList.add('active');
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const u = new URL(window.location.href);
+        if (name === def) { u.searchParams.delete('camera'); u.searchParams.delete('cam'); }
+        else { u.searchParams.set('camera', name); u.searchParams.delete('cam'); }
+        window.location.href = u.toString();
+      });
+      btn.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
+      container.appendChild(btn);
+    }
+  } catch (e) { console.warn('camera switcher failed', e); }
+}
+
 (async () => {
+  await buildCameraSwitcher();
   await loadSunTimes();
   await loadFrames();
   if (frames.length) show(idx);

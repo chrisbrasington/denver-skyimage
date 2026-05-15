@@ -17,6 +17,9 @@
   .sidebar button { width: 100%; text-align: left; font-size: 0.85rem; padding: 0.55rem 0.7rem; }
   .sidebar .preset-everything { background: #2a3b5a; }
   .sidebar .preset-today { background: #2d4a2d; }
+  .camera-switcher { position: fixed; top: 0.5rem; right: 0.5rem; display: flex; flex-direction: column; gap: 0.3rem; z-index: 100; }
+  .camera-switcher button { font-size: 0.8rem; padding: 0.4rem 0.8rem; opacity: 0.6; }
+  .camera-switcher button.active { opacity: 1; background: #2a3b5a; border-color: #8ab4ff; }
   .bottombar { position: sticky; bottom: 0; background: #0b0d12; border-top: 1px solid #222; padding: 0.5rem 1rem 0.75rem; display: flex; flex-direction: column; gap: 0.4rem; }
   .row { display: flex; gap: 0.75rem; align-items: center; }
   .row .slot { flex: 1; min-width: 0; }
@@ -51,6 +54,7 @@
   <select id="daySel" title="Day"></select>
   <a id="saveDay" href="#">Save Day Video</a>
 </header>
+<div class="camera-switcher" id="cameraSwitcher"></div>
 <div class="main">
   <div class="stage"><img id="frame" alt="sky"></div>
   <div class="sidebar" id="rangePresets"></div>
@@ -483,7 +487,33 @@ fpsInput.addEventListener('change', () => {
   updateSaveLink();
 });
 
+async function buildCameraSwitcher(alwaysShow) {
+  try {
+    const r = await fetch('/api/cameras');
+    const data = await r.json();
+    const cams = data.cameras || [];
+    const def = data.default;
+    if (cams.length <= 1 && !alwaysShow) return;
+    const container = document.getElementById('cameraSwitcher');
+    container.innerHTML = '';
+    const active = CAMERA || def;
+    for (const name of cams) {
+      const btn = document.createElement('button');
+      btn.textContent = name;
+      if (name === active) btn.classList.add('active');
+      btn.addEventListener('click', () => {
+        const u = new URL(window.location.href);
+        if (name === def) { u.searchParams.delete('camera'); u.searchParams.delete('cam'); }
+        else { u.searchParams.set('camera', name); u.searchParams.delete('cam'); }
+        window.location.href = u.toString();
+      });
+      container.appendChild(btn);
+    }
+  } catch (e) { console.warn('camera switcher failed', e); }
+}
+
 (async () => {
+  await buildCameraSwitcher(true);
   await loadSunTimes();
   await loadFrames();
   await loadDays();
