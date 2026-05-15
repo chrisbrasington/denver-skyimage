@@ -8,7 +8,12 @@
   * { box-sizing: border-box; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; height: 100%; background: #0b0d12; color: #e6e9ef; font-family: system-ui, sans-serif; overflow: hidden; }
   body { display: flex; flex-direction: column; }
-  .stage { flex: 1; display: flex; justify-content: center; align-items: center; padding: 0; background: #0b0d12; cursor: pointer; min-height: 0; }
+  .main { flex: 1; display: flex; align-items: stretch; min-height: 0; }
+  .sidebar { display: flex; flex-direction: column; gap: 0.5rem; padding: 1rem 0 1rem 1rem; min-width: 16rem; max-width: 20rem; }
+  .sidebar button { width: 100%; text-align: left; font-size: 1.05rem; padding: 0.85rem 1rem; min-width: 0; }
+  .sidebar .preset-everything { background: #2a3b5a; }
+  .sidebar .preset-today { background: #2d4a2d; }
+  .stage { flex: 1; display: flex; justify-content: center; align-items: center; padding: 0; background: #0b0d12; cursor: pointer; min-height: 0; min-width: 0; }
   .stage img { max-width: 100%; max-height: 100%; box-shadow: 0 0 30px #000; }
   .stage:fullscreen { padding: 0; }
   .stage:fullscreen img { max-height: 100vh; max-width: 100vw; box-shadow: none; }
@@ -48,7 +53,10 @@
 </head>
 <body>
 <div class="camera-switcher" id="cameraSwitcher"></div>
-<div class="stage" id="stage"><img id="frame" alt="sky"></div>
+<div class="main">
+  <div class="sidebar" id="rangePresets"></div>
+  <div class="stage" id="stage"><img id="frame" alt="sky"></div>
+</div>
 <div class="bottombar">
   <div class="row">
     <span class="slabel">Range</span>
@@ -114,6 +122,7 @@ const rangeMax = document.getElementById('rangeMax');
 const selBar = document.getElementById('selBar');
 const dayMarks = document.getElementById('dayMarks');
 const anchorLabels = document.getElementById('anchorLabels');
+const rangePresets = document.getElementById('rangePresets');
 const rangeStartLabel = document.getElementById('rangeStartLabel');
 const rangeEndLabel = document.getElementById('rangeEndLabel');
 
@@ -161,6 +170,77 @@ async function loadFrames() {
     rangeHi = max;
   }
   applyRangeUI();
+  buildPresets();
+}
+
+function findIdxNearTime(dayIndices, hhmm) {
+  const [th, tm] = hhmm.split(':').map(Number);
+  const target = th * 60 + tm;
+  let best = -1, bestDiff = Infinity;
+  for (const i of dayIndices) {
+    const [hh, mm] = frames[i].ts.slice(11).split(':').map(Number);
+    const diff = Math.abs(hh * 60 + mm - target);
+    if (diff < bestDiff) { bestDiff = diff; best = i; }
+  }
+  return bestDiff <= 120 ? best : -1;
+}
+
+function applyPreset(lo, hi) {
+  rangeLo = lo;
+  rangeHi = hi;
+  applyRangeUI();
+  resumeFromStart();
+}
+
+function buildPresets() {
+  rangePresets.innerHTML = '';
+  if (!frames.length) return;
+
+  const allBtn = document.createElement('button');
+  allBtn.className = 'preset-everything';
+  allBtn.textContent = 'Everything';
+  allBtn.addEventListener('click', (e) => { e.stopPropagation(); applyPreset(0, frames.length - 1); });
+  allBtn.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
+  rangePresets.appendChild(allBtn);
+
+  const byDay = {};
+  frames.forEach((f, i) => {
+    const day = f.ts.slice(0, 10);
+    if (!byDay[day]) byDay[day] = [];
+    byDay[day].push(i);
+  });
+  const days = Object.keys(byDay).sort();
+  const todayKey = days[days.length - 1];
+
+  for (const day of days) {
+    const sun = sunTimes[day] || {};
+    if (!sun.sunrise) continue;
+    const sunriseIdx = findIdxNearTime(byDay[day], sun.sunrise);
+    if (sunriseIdx < 0) continue;
+
+    let hi, label, cls = '';
+    const md = day.slice(5);
+    if (day === todayKey) {
+      hi = frames.length - 1;
+      label = `Today (${md})\nsunrise → CURRENT`;
+      cls = 'preset-today';
+    } else if (sun.sunset) {
+      const sunsetIdx = findIdxNearTime(byDay[day], sun.sunset);
+      if (sunsetIdx < 0) continue;
+      hi = sunsetIdx;
+      const daysAgo = days.length - 1 - days.indexOf(day);
+      const prefix = daysAgo === 1 ? 'Yesterday' : `${daysAgo} days ago`;
+      label = `${prefix} (${md})\nsunrise → sunset`;
+    } else continue;
+
+    const btn = document.createElement('button');
+    if (cls) btn.className = cls;
+    btn.style.whiteSpace = 'pre-line';
+    btn.textContent = label;
+    btn.addEventListener('click', (e) => { e.stopPropagation(); applyPreset(sunriseIdx, hi); });
+    btn.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
+    rangePresets.appendChild(btn);
+  }
 }
 
 async function loadSunTimes() {
