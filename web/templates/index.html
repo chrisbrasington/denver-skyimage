@@ -20,6 +20,8 @@
   .camera-switcher { position: fixed; top: 0.5rem; right: 0.5rem; display: flex; flex-direction: column; gap: 0.3rem; z-index: 100; }
   .camera-switcher button { font-size: 0.8rem; padding: 0.4rem 0.8rem; opacity: 0.6; }
   .camera-switcher button.active { opacity: 1; background: #2a3b5a; border-color: #8ab4ff; }
+  .thumb-tooltip { position: fixed; transform: translate(-50%, calc(-100% - 10px)); background: rgba(20,24,32,0.95); color: #e6e9ef; padding: 0.35rem 0.65rem; border-radius: 4px; font-size: 0.85rem; white-space: nowrap; pointer-events: none; z-index: 1000; display: none; border: 1px solid #444; font-variant-numeric: tabular-nums; }
+  .thumb-tooltip.show { display: block; }
   .bottombar { position: sticky; bottom: 0; background: #0b0d12; border-top: 1px solid #222; padding: 0.5rem 1rem 0.75rem; display: flex; flex-direction: column; gap: 0.4rem; }
   .row { display: flex; gap: 0.75rem; align-items: center; }
   .row .slot { flex: 1; min-width: 0; }
@@ -56,6 +58,7 @@
   <a id="saveDay" href="#">Save Day Video</a>
 </header>
 <div class="camera-switcher" id="cameraSwitcher"></div>
+<div class="thumb-tooltip" id="thumbTooltip"></div>
 <div class="main">
   <div class="sidebar" id="rangePresets"></div>
   <div class="stage"><img id="frame" alt="sky"></div>
@@ -121,6 +124,28 @@ const saveDay = document.getElementById('saveDay');
 const fsBtn = document.getElementById('fsBtn');
 const stage = document.querySelector('.stage');
 const rangePresets = document.getElementById('rangePresets');
+const thumbTooltip = document.getElementById('thumbTooltip');
+
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function formatTs(iso) {
+  if (!iso) return '';
+  const [d, t = '00:00:00'] = iso.split('T');
+  const [, mo, dd] = d.split('-');
+  const [hh, mm, ss] = t.split(':');
+  let h = parseInt(hh, 10);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${MONTHS[parseInt(mo,10)-1]} ${parseInt(dd,10)}, ${h}:${mm}:${ss} ${ampm}`;
+}
+function showThumbTooltip(idx, clientX, anchorEl) {
+  if (!frames.length) return;
+  thumbTooltip.textContent = formatTs(frames[idx].ts);
+  const rect = anchorEl.getBoundingClientRect();
+  thumbTooltip.style.left = `${clientX}px`;
+  thumbTooltip.style.top = `${rect.top}px`;
+  thumbTooltip.classList.add('show');
+}
+function hideThumbTooltip() { thumbTooltip.classList.remove('show'); }
 const rangeMin = document.getElementById('rangeMin');
 const rangeMax = document.getElementById('rangeMax');
 const selBar = document.getElementById('selBar');
@@ -463,14 +488,17 @@ dual.addEventListener('pointerdown', (e) => {
   playBtn.textContent = 'Play';
   try { dual.setPointerCapture(e.pointerId); } catch {}
   updateActiveThumb(target);
+  showThumbTooltip(activeThumb === 'hi' ? rangeHi : rangeLo, e.clientX, dual);
 
   const onMove = (ev) => {
     if (!activeThumb) return;
     const r = dual.getBoundingClientRect();
     updateActiveThumb(pointerToFrame(ev.clientX, r));
+    showThumbTooltip(activeThumb === 'hi' ? rangeHi : rangeLo, ev.clientX, dual);
   };
   const onUp = () => {
     activeThumb = null;
+    hideThumbTooltip();
     dual.removeEventListener('pointermove', onMove);
     dual.removeEventListener('pointerup', onUp);
     dual.removeEventListener('pointercancel', onUp);
@@ -480,6 +508,23 @@ dual.addEventListener('pointerdown', (e) => {
   dual.addEventListener('pointerup', onUp);
   dual.addEventListener('pointercancel', onUp);
 });
+
+function seekTooltipUpdate(ev) {
+  const r = seek.getBoundingClientRect();
+  const max = parseInt(seek.max, 10) || frames.length - 1;
+  const min = parseInt(seek.min, 10) || 0;
+  const v = parseInt(seek.value, 10);
+  const denom = Math.max(1, max - min);
+  const x = r.left + ((v - min) / denom) * r.width;
+  showThumbTooltip(v, ev?.clientX ?? x, seek);
+}
+seek.addEventListener('pointerdown', (e) => {
+  seekTooltipUpdate(e);
+});
+seek.addEventListener('input', (e) => seekTooltipUpdate(e));
+seek.addEventListener('pointerup', hideThumbTooltip);
+seek.addEventListener('pointercancel', hideThumbTooltip);
+seek.addEventListener('change', hideThumbTooltip);
 
 document.addEventListener('keydown', (e) => { if (e.key === 'Shift') shiftDown = true; });
 document.addEventListener('keyup', (e) => { if (e.key === 'Shift') shiftDown = false; });

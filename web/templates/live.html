@@ -49,10 +49,13 @@
   .camera-switcher { position: fixed; top: 1rem; right: 1rem; display: flex; flex-direction: column; gap: 0.5rem; z-index: 100; }
   .camera-switcher button { font-size: 1.1rem; padding: 0.7rem 1.2rem; min-width: 0; opacity: 0.7; }
   .camera-switcher button.active { opacity: 1; background: #2a3b5a; border-color: #8ab4ff; }
+  .thumb-tooltip { position: fixed; transform: translate(-50%, calc(-100% - 14px)); background: rgba(20,24,32,0.95); color: #e6e9ef; padding: 0.5rem 0.9rem; border-radius: 6px; font-size: 1rem; white-space: nowrap; pointer-events: none; z-index: 1000; display: none; border: 2px solid #555; font-variant-numeric: tabular-nums; }
+  .thumb-tooltip.show { display: block; }
 </style>
 </head>
 <body>
 <div class="camera-switcher" id="cameraSwitcher"></div>
+<div class="thumb-tooltip" id="thumbTooltip"></div>
 <div class="main">
   <div class="sidebar" id="rangePresets"></div>
   <div class="stage" id="stage"><img id="frame" alt="sky"></div>
@@ -124,6 +127,28 @@ const selBar = document.getElementById('selBar');
 const dayMarks = document.getElementById('dayMarks');
 const anchorLabels = document.getElementById('anchorLabels');
 const rangePresets = document.getElementById('rangePresets');
+const thumbTooltip = document.getElementById('thumbTooltip');
+
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function formatTs(iso) {
+  if (!iso) return '';
+  const [d, t = '00:00:00'] = iso.split('T');
+  const [, mo, dd] = d.split('-');
+  const [hh, mm, ss] = t.split(':');
+  let h = parseInt(hh, 10);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${MONTHS[parseInt(mo,10)-1]} ${parseInt(dd,10)}, ${h}:${mm}:${ss} ${ampm}`;
+}
+function showThumbTooltip(idx, clientX, anchorEl) {
+  if (!frames.length) return;
+  thumbTooltip.textContent = formatTs(frames[idx].ts);
+  const rect = anchorEl.getBoundingClientRect();
+  thumbTooltip.style.left = `${clientX}px`;
+  thumbTooltip.style.top = `${rect.top}px`;
+  thumbTooltip.classList.add('show');
+}
+function hideThumbTooltip() { thumbTooltip.classList.remove('show'); }
 const rangeStartLabel = document.getElementById('rangeStartLabel');
 const rangeEndLabel = document.getElementById('rangeEndLabel');
 
@@ -434,14 +459,17 @@ dual.addEventListener('pointerdown', (e) => {
   }
   try { dual.setPointerCapture(e.pointerId); } catch {}
   updateActiveThumb(target);
+  showThumbTooltip(activeThumb === 'hi' ? rangeHi : rangeLo, e.clientX, dual);
 
   const onMove = (ev) => {
     if (!activeThumb) return;
     const r = dual.getBoundingClientRect();
     updateActiveThumb(pointerToFrame(ev.clientX, r));
+    showThumbTooltip(activeThumb === 'hi' ? rangeHi : rangeLo, ev.clientX, dual);
   };
   const onUp = () => {
     activeThumb = null;
+    hideThumbTooltip();
     dual.removeEventListener('pointermove', onMove);
     dual.removeEventListener('pointerup', onUp);
     dual.removeEventListener('pointercancel', onUp);
@@ -451,6 +479,21 @@ dual.addEventListener('pointerdown', (e) => {
   dual.addEventListener('pointerup', onUp);
   dual.addEventListener('pointercancel', onUp);
 });
+
+function seekTooltipUpdate(ev) {
+  const r = seek.getBoundingClientRect();
+  const max = parseInt(seek.max, 10) || frames.length - 1;
+  const min = parseInt(seek.min, 10) || 0;
+  const v = parseInt(seek.value, 10);
+  const denom = Math.max(1, max - min);
+  const x = r.left + ((v - min) / denom) * r.width;
+  showThumbTooltip(v, ev?.clientX ?? x, seek);
+}
+seek.addEventListener('pointerdown', (e) => seekTooltipUpdate(e));
+seek.addEventListener('input', (e) => seekTooltipUpdate(e));
+seek.addEventListener('pointerup', hideThumbTooltip);
+seek.addEventListener('pointercancel', hideThumbTooltip);
+seek.addEventListener('change', hideThumbTooltip);
 
 function show(i) {
   if (!frames.length) return;
