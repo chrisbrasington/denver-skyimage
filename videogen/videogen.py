@@ -90,6 +90,7 @@ def encode_day(frames, output_path):
         "-c:v", "libx264",
         "-pix_fmt", "yuv420p",
         "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2",
+        "-f", "mp4",
         str(tmp),
     ]
     try:
