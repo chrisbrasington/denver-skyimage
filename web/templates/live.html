@@ -372,25 +372,58 @@ rangeMin.addEventListener('change', resumeFromStart);
 rangeMax.addEventListener('change', resumeFromStart);
 
 const dual = document.querySelector('.rangebar .dual');
-dual.addEventListener('click', (e) => {
-  if (!frames.length) return;
-  if (e.target.tagName === 'INPUT') return;
-  const rect = dual.getBoundingClientRect();
-  const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-  const target = Math.round(pct * (frames.length - 1));
-  const selSize = Math.max(1, rangeHi - rangeLo);
-  const endTol = Math.max(2, Math.floor(selSize * 0.05));
-  const grabHi = target > rangeHi || target >= rangeHi - endTol;
+let activeThumb = null;
+
+function pointerToFrame(clientX, rect) {
+  const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+  return Math.round(pct * (frames.length - 1));
+}
+
+function updateActiveThumb(target) {
   let v = snapToDay(target);
-  if (grabHi) {
-    if (v <= rangeLo) v = Math.min(frames.length - 1, rangeLo + 1);
-    rangeHi = v;
-  } else {
+  if (activeThumb === 'lo') {
     if (v >= rangeHi) v = Math.max(0, rangeHi - 1);
     rangeLo = v;
+    show(rangeLo);
+  } else {
+    if (v <= rangeLo) v = Math.min(frames.length - 1, rangeLo + 1);
+    rangeHi = v;
+    show(rangeHi);
   }
   applyRangeUI();
-  resumeFromStart();
+}
+
+dual.addEventListener('pointerdown', (e) => {
+  if (!frames.length) return;
+  if (e.target.tagName === 'INPUT') return;
+  e.stopPropagation();
+  const rect = dual.getBoundingClientRect();
+  const target = pointerToFrame(e.clientX, rect);
+  const selSize = Math.max(1, rangeHi - rangeLo);
+  const endTol = Math.max(2, Math.floor(selSize * 0.20));
+  activeThumb = (target > rangeHi || target >= rangeHi - endTol) ? 'hi' : 'lo';
+  if (!TOUCH_MODE) {
+    playing = false;
+    setPlayBtn('Play');
+  }
+  try { dual.setPointerCapture(e.pointerId); } catch {}
+  updateActiveThumb(target);
+
+  const onMove = (ev) => {
+    if (!activeThumb) return;
+    const r = dual.getBoundingClientRect();
+    updateActiveThumb(pointerToFrame(ev.clientX, r));
+  };
+  const onUp = () => {
+    activeThumb = null;
+    dual.removeEventListener('pointermove', onMove);
+    dual.removeEventListener('pointerup', onUp);
+    dual.removeEventListener('pointercancel', onUp);
+    resumeFromStart();
+  };
+  dual.addEventListener('pointermove', onMove);
+  dual.addEventListener('pointerup', onUp);
+  dual.addEventListener('pointercancel', onUp);
 });
 
 function show(i) {
