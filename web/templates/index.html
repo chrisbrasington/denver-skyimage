@@ -12,20 +12,23 @@
   .stage img { max-width: 100%; max-height: 78vh; box-shadow: 0 0 20px #000; }
   .stage:fullscreen { padding: 0; }
   .stage:fullscreen img { max-height: 100vh; max-width: 100vw; box-shadow: none; }
-  .controls { display: flex; gap: 0.75rem; align-items: center; padding: 0 1rem 1rem; flex-wrap: wrap; }
-  input[type=range] { flex: 1; min-width: 200px; }
+  .bottombar { position: sticky; bottom: 0; background: #0b0d12; border-top: 1px solid #222; padding: 0.5rem 1rem 0.75rem; display: flex; flex-direction: column; gap: 0.4rem; }
+  .row { display: flex; gap: 0.75rem; align-items: center; }
+  .row .slot { flex: 1; min-width: 0; }
+  .slabel { font-size: 0.75rem; color: #8ab4ff; min-width: 6rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+  input[type=range] { width: 100%; min-width: 0; }
   button { background: #1f2630; color: #e6e9ef; border: 1px solid #333; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; }
   button:hover { background: #2a3340; }
-  .ts { font-variant-numeric: tabular-nums; min-width: 18ch; }
-  label { display: flex; align-items: center; gap: 0.4rem; }
-  .rangebar { padding: 0.5rem 1rem 0; }
-  .rangebar .ticks { display: flex; justify-content: space-between; font-size: 0.7rem; color: #788; margin-bottom: 0.25rem; font-variant-numeric: tabular-nums; }
-  .rangebar .dual { position: relative; height: 28px; }
-  .rangebar .track { position: absolute; top: 12px; left: 0; right: 0; height: 4px; background: #1f2630; border-radius: 2px; }
+  .ts { font-variant-numeric: tabular-nums; min-width: 18ch; font-size: 0.8rem; }
+  label { display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; }
+  .rangebar { width: 100%; }
+  .rangebar .ticks { display: flex; justify-content: space-between; font-size: 0.7rem; color: #788; margin-bottom: 0.15rem; font-variant-numeric: tabular-nums; }
+  .rangebar .dual { position: relative; height: 24px; }
+  .rangebar .track { position: absolute; top: 10px; left: 0; right: 0; height: 4px; background: #1f2630; border-radius: 2px; }
   .rangebar .selected { position: absolute; top: 0; height: 100%; background: #8ab4ff; border-radius: 2px; }
-  .rangebar .daymarks { position: absolute; top: 8px; left: 0; right: 0; height: 12px; pointer-events: none; }
+  .rangebar .daymarks { position: absolute; top: 6px; left: 0; right: 0; height: 12px; pointer-events: none; }
   .rangebar .daymarks span { position: absolute; top: 0; width: 1px; height: 12px; background: #455; }
-  .rangebar input[type=range] { position: absolute; top: 6px; left: 0; width: 100%; height: 16px; background: transparent; appearance: none; pointer-events: none; margin: 0; }
+  .rangebar input[type=range] { position: absolute; top: 4px; left: 0; width: 100%; height: 16px; background: transparent; appearance: none; pointer-events: none; margin: 0; }
   .rangebar input[type=range]::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #e6e9ef; border: 2px solid #8ab4ff; cursor: pointer; pointer-events: auto; }
   .rangebar input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: #e6e9ef; border: 2px solid #8ab4ff; cursor: pointer; pointer-events: auto; }
   .rangebar input[type=range]::-webkit-slider-runnable-track { background: transparent; }
@@ -41,25 +44,33 @@
   <select id="daySel" title="Day"></select>
   <a id="saveDay" href="#">Save Day Video</a>
 </header>
-<div class="rangebar">
-  <div class="ticks">
-    <span id="rangeStartLabel">--</span>
-    <span id="rangeEndLabel">--</span>
-  </div>
-  <div class="dual">
-    <div class="track"><div class="selected" id="selBar"></div></div>
-    <div class="daymarks" id="dayMarks"></div>
-    <input type="range" id="rangeMin" min="0" max="0" value="0">
-    <input type="range" id="rangeMax" min="0" max="0" value="0">
-  </div>
-</div>
 <div class="stage"><img id="frame" alt="sky"></div>
-<div class="controls">
-  <button id="playBtn">Pause</button>
-  <span class="ts" id="tsLabel">--</span>
-  <input type="range" id="seek" min="0" max="0" value="0">
-  <label>FPS <input type="number" id="fps" value="10" min="1" max="60" style="width: 4em;"></label>
-  <button id="fsBtn" title="Fullscreen">⛶</button>
+<div class="bottombar">
+  <div class="row">
+    <span class="slabel">Range</span>
+    <div class="slot">
+      <div class="rangebar">
+        <div class="ticks">
+          <span id="rangeStartLabel">--</span>
+          <span id="rangeEndLabel">--</span>
+        </div>
+        <div class="dual">
+          <div class="track"><div class="selected" id="selBar"></div></div>
+          <div class="daymarks" id="dayMarks"></div>
+          <input type="range" id="rangeMin" min="0" max="0" value="0">
+          <input type="range" id="rangeMax" min="0" max="0" value="0">
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="row">
+    <span class="slabel">Playback</span>
+    <button id="playBtn">Pause</button>
+    <span class="ts" id="tsLabel">--</span>
+    <div class="slot"><input type="range" id="seek" min="0" max="0" value="0"></div>
+    <label>FPS <input type="number" id="fps" value="10" min="1" max="60" style="width: 4em;"></label>
+    <button id="fsBtn" title="Fullscreen">⛶</button>
+  </div>
 </div>
 <script>
 let frames = [];
@@ -197,7 +208,10 @@ rangeMin.addEventListener('input', () => {
   v = snapToDay(v);
   if (v >= rangeHi) v = Math.max(0, rangeHi - 1);
   rangeLo = v;
+  playing = false;
+  playBtn.textContent = 'Play';
   applyRangeUI();
+  show(rangeLo);
 });
 
 rangeMax.addEventListener('input', () => {
@@ -205,8 +219,21 @@ rangeMax.addEventListener('input', () => {
   v = snapToDay(v);
   if (v <= rangeLo) v = Math.min(frames.length - 1, rangeLo + 1);
   rangeHi = v;
+  playing = false;
+  playBtn.textContent = 'Play';
   applyRangeUI();
+  show(rangeHi);
 });
+
+function resumeFromStart() {
+  idx = rangeLo;
+  show(idx);
+  playing = true;
+  playBtn.textContent = 'Pause';
+}
+
+rangeMin.addEventListener('change', resumeFromStart);
+rangeMax.addEventListener('change', resumeFromStart);
 
 document.addEventListener('keydown', (e) => { if (e.key === 'Shift') shiftDown = true; });
 document.addEventListener('keyup', (e) => { if (e.key === 'Shift') shiftDown = false; });
