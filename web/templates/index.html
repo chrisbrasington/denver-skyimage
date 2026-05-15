@@ -144,6 +144,11 @@ function toggleFullscreen() {
 }
 
 fsBtn.addEventListener('click', toggleFullscreen);
+stage.addEventListener('click', (e) => {
+  if (e.target.closest('button, input, select, a')) return;
+  toggleFullscreen();
+});
+stage.style.cursor = 'pointer';
 
 document.addEventListener('keydown', (e) => {
   const t = e.target;

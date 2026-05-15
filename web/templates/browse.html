@@ -68,6 +68,18 @@ function toFilenameTs(iso) {
   return iso.replace('T', '_').replace(/:/g, '-').slice(0, 19);
 }
 
+function denverTs(date) {
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Denver',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hourCycle: 'h23',
+  });
+  const p = {};
+  for (const x of fmt.formatToParts(date)) p[x.type] = x.value;
+  return `${p.year}-${p.month}-${p.day}_${p.hour}-${p.minute}-${p.second}`;
+}
+
 async function buildJumpOptions() {
   const [daysR, sunR] = await Promise.all([
     fetch(withCam('/api/days')),
@@ -82,10 +94,8 @@ async function buildJumpOptions() {
   jumpSel.appendChild(new Option('Newest first', ''));
 
   if (days.length) {
-    const latest = days[0].day;
-    const latestDate = new Date(`${latest}T00:00:00`);
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-    jumpSel.appendChild(new Option('Last hour', toFilenameTs(oneHourAgo.toISOString())));
+    jumpSel.appendChild(new Option('Last hour', denverTs(oneHourAgo)));
 
     days.forEach((d, idx) => {
       const md = d.day.slice(5);

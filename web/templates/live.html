@@ -143,6 +143,14 @@ function toggleFullscreen() {
 
 stage.addEventListener('click', toggleFullscreen);
 
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'f' && e.key !== 'F') return;
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA')) return;
+  e.preventDefault();
+  toggleFullscreen();
+});
+
 function resetIdle() {
   clearTimeout(idleTimer);
   idleTimer = setTimeout(() => { resetPending = true; }, IDLE_MS);
