@@ -15,6 +15,9 @@
   .sidebar .preset-today { background: #2d4a2d; }
   .stage { position: relative; flex: 1; display: flex; justify-content: center; align-items: center; padding: 0; background: #0b0d12; cursor: pointer; min-height: 0; min-width: 0; }
   .fs-hint { position: absolute; top: 1rem; right: 1rem; width: 110px; height: 110px; color: #e6e9ef; opacity: 0.45; pointer-events: none; animation: fsPulse 2.4s ease-in-out infinite; filter: drop-shadow(0 0 8px rgba(0,0,0,0.7)); transition: top 0.15s, right 0.15s; }
+  .time-label { position: absolute; top: 1rem; right: 1rem; display: block; background: rgba(10,15,20,0.55); border: 2px solid rgba(255,255,255,0.4); border-radius: 14px; padding: 0.9rem 1.5rem; color: #fff; text-shadow: 0 2px 6px rgba(0,0,0,0.7); pointer-events: none; backdrop-filter: blur(4px); letter-spacing: 0.02em; z-index: 50; min-width: 18rem; text-align: right; transition: top 0.15s, right 0.15s; }
+  .time-label .descriptor { display: block; font-size: 2.4rem; font-weight: 700; line-height: 1.05; }
+  .time-label .ts { display: block; font-size: 1.4rem; opacity: 0.9; margin-top: 0.4rem; font-variant-numeric: tabular-nums; }
   .fs-hint svg { width: 100%; height: 100%; }
   @keyframes fsPulse {
     0%, 100% { opacity: 0.30; transform: scale(0.96); }
@@ -67,6 +70,12 @@
   <div class="sidebar" id="rangePresets"></div>
   <div class="stage" id="stage">
   <img id="frame" alt="sky">
+  {% if touch_mode %}
+  <div class="time-label" aria-hidden="true">
+    <span class="descriptor" id="timeDescriptor">--</span>
+    <span class="ts" id="timeTs">--</span>
+  </div>
+  {% endif %}
   <div class="fs-hint" aria-hidden="true">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
       <polyline points="4 9 4 4 9 4"></polyline>
@@ -146,19 +155,76 @@ const anchorLabels = document.getElementById('anchorLabels');
 const rangePresets = document.getElementById('rangePresets');
 const thumbTooltip = document.getElementById('thumbTooltip');
 const fsHint = document.querySelector('.fs-hint');
+const timeDescriptor = document.getElementById('timeDescriptor');
+const timeTs = document.getElementById('timeTs');
 
-function positionFsHint() {
-  if (!fsHint) return;
-  if (document.fullscreenElement) return;
+const WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function describePartOfDay(iso, sun) {
+  const t = iso.slice(11);
+  const [hh, mm] = t.split(':').map(Number);
+  const minute = hh * 60 + mm;
+  const sr = sun?.sunrise ? (() => { const [a,b]=sun.sunrise.split(':').map(Number); return a*60+b; })() : null;
+  const ss = sun?.sunset  ? (() => { const [a,b]=sun.sunset.split(':').map(Number);  return a*60+b; })() : null;
+
+  if (sr !== null && Math.abs(minute - sr) <= 15) return 'Sunrise';
+  if (ss !== null && Math.abs(minute - ss) <= 15) return 'Sunset';
+
+  if (sr !== null && minute < sr - 60) return 'Late night';
+  if (sr !== null && minute < sr - 15) return 'Pre-dawn';
+  if (sr !== null && minute < sr + 90)  return 'Early morning';
+  if (minute < 11 * 60)                  return 'Morning';
+  if (minute < 13 * 60)                  return 'Noon';
+  if (ss !== null && minute > ss + 120) return 'Night';
+  if (ss !== null && minute > ss + 30)  return 'Dusk';
+  if (ss !== null && minute > ss - 60)  return 'Late afternoon';
+  return 'Afternoon';
+}
+
+function readableTs(iso) {
+  const [d, t] = iso.split('T');
+  const [, mo, dd] = d.split('-');
+  const [hh, mm] = t.split(':');
+  let h = parseInt(hh, 10);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  const dow = WEEKDAYS[new Date(`${d}T${t}`).getDay()];
+  return `${dow} ${parseInt(mo,10)}/${parseInt(dd,10)} ${h}:${mm} ${ampm}`;
+}
+
+function updateTimeLabel(iso) {
+  if (!timeDescriptor) return;
+  const day = iso.slice(0, 10);
+  const sun = sunTimes[day];
+  timeDescriptor.textContent = describePartOfDay(iso, sun);
+  timeTs.textContent = readableTs(iso);
+}
+
+const timeLabel = document.querySelector('.time-label');
+function positionOverlays() {
+  if (document.fullscreenElement) {
+    if (timeLabel) {
+      timeLabel.style.top = '1.5rem';
+      timeLabel.style.right = '1.5rem';
+    }
+    return;
+  }
   const imgRect = img.getBoundingClientRect();
   const stageRect = stage.getBoundingClientRect();
   if (imgRect.width === 0) return;
-  fsHint.style.top = `${imgRect.top - stageRect.top + 16}px`;
-  fsHint.style.right = `${stageRect.right - imgRect.right + 16}px`;
+  const topPx = imgRect.top - stageRect.top + 16;
+  const rightPx = stageRect.right - imgRect.right + 16;
+  if (fsHint) {
+    fsHint.style.top = `${topPx}px`;
+    fsHint.style.right = `${rightPx}px`;
+  }
+  if (timeLabel) {
+    timeLabel.style.top = `${topPx}px`;
+    timeLabel.style.right = `${rightPx + 110 + 16}px`;
+  }
 }
-img.addEventListener('load', positionFsHint);
-window.addEventListener('resize', positionFsHint);
-document.addEventListener('fullscreenchange', positionFsHint);
+img.addEventListener('load', positionOverlays);
+window.addEventListener('resize', positionOverlays);
+document.addEventListener('fullscreenchange', positionOverlays);
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function formatTs(iso) {
@@ -533,6 +599,7 @@ function show(i) {
   img.src = imgUrl(f.name);
   tsLabel.textContent = f.ts.replace('T', ' ');
   seek.value = idx;
+  updateTimeLabel(f.ts);
 }
 
 function findAnchorFor(day, kind) {
