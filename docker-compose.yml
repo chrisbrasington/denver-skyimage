@@ -14,4 +14,4 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./downloaded_images:/data/images:ro,z
+      - ./downloaded_images:/data/images:z

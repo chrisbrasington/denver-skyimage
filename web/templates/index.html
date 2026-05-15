@@ -18,6 +18,18 @@
   button:hover { background: #2a3340; }
   .ts { font-variant-numeric: tabular-nums; min-width: 18ch; }
   label { display: flex; align-items: center; gap: 0.4rem; }
+  .rangebar { padding: 0.5rem 1rem 0; }
+  .rangebar .ticks { display: flex; justify-content: space-between; font-size: 0.7rem; color: #788; margin-bottom: 0.25rem; font-variant-numeric: tabular-nums; }
+  .rangebar .dual { position: relative; height: 28px; }
+  .rangebar .track { position: absolute; top: 12px; left: 0; right: 0; height: 4px; background: #1f2630; border-radius: 2px; }
+  .rangebar .selected { position: absolute; top: 0; height: 100%; background: #8ab4ff; border-radius: 2px; }
+  .rangebar .daymarks { position: absolute; top: 8px; left: 0; right: 0; height: 12px; pointer-events: none; }
+  .rangebar .daymarks span { position: absolute; top: 0; width: 1px; height: 12px; background: #455; }
+  .rangebar input[type=range] { position: absolute; top: 6px; left: 0; width: 100%; height: 16px; background: transparent; appearance: none; pointer-events: none; margin: 0; }
+  .rangebar input[type=range]::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #e6e9ef; border: 2px solid #8ab4ff; cursor: pointer; pointer-events: auto; }
+  .rangebar input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: #e6e9ef; border: 2px solid #8ab4ff; cursor: pointer; pointer-events: auto; }
+  .rangebar input[type=range]::-webkit-slider-runnable-track { background: transparent; }
+  .rangebar input[type=range]::-moz-range-track { background: transparent; }
 </style>
 </head>
 <body>
@@ -26,7 +38,21 @@
   <a href="/">Live</a>
   <a href="/browse">Browse</a>
   <a id="saveLink" href="/save">Save MP4</a>
+  <select id="daySel" title="Day"></select>
+  <a id="saveDay" href="#">Save Day Video</a>
 </header>
+<div class="rangebar">
+  <div class="ticks">
+    <span id="rangeStartLabel">--</span>
+    <span id="rangeEndLabel">--</span>
+  </div>
+  <div class="dual">
+    <div class="track"><div class="selected" id="selBar"></div></div>
+    <div class="daymarks" id="dayMarks"></div>
+    <input type="range" id="rangeMin" min="0" max="0" value="0">
+    <input type="range" id="rangeMax" min="0" max="0" value="0">
+  </div>
+</div>
 <div class="stage"><img id="frame" alt="sky"></div>
 <div class="controls">
   <button id="playBtn">Pause</button>
@@ -47,36 +73,178 @@ const tsLabel = document.getElementById('tsLabel');
 const playBtn = document.getElementById('playBtn');
 const fpsInput = document.getElementById('fps');
 const saveLink = document.getElementById('saveLink');
+const daySel = document.getElementById('daySel');
+const saveDay = document.getElementById('saveDay');
 const fsBtn = document.getElementById('fsBtn');
 const stage = document.querySelector('.stage');
+const rangeMin = document.getElementById('rangeMin');
+const rangeMax = document.getElementById('rangeMax');
+const selBar = document.getElementById('selBar');
+const dayMarks = document.getElementById('dayMarks');
+const rangeStartLabel = document.getElementById('rangeStartLabel');
+const rangeEndLabel = document.getElementById('rangeEndLabel');
 
-fsBtn.addEventListener('click', () => {
+let dayStarts = [];
+let shiftDown = false;
+let rangeLo = 0;
+let rangeHi = 0;
+
+function toggleFullscreen() {
   const el = stage;
   if (!document.fullscreenElement) {
     (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el);
   } else {
     (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
   }
+}
+
+fsBtn.addEventListener('click', toggleFullscreen);
+
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'f' && e.key !== 'F') return;
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA')) return;
+  e.preventDefault();
+  toggleFullscreen();
 });
 
 async function loadFrames() {
   const r = await fetch('/api/frames');
   const data = await r.json();
   const prevLen = frames.length;
+  const wasAtEnd = rangeHi === Math.max(0, prevLen - 1);
   frames = data;
-  seek.max = Math.max(0, frames.length - 1);
-  if (prevLen === 0 && frames.length) idx = frames.length - 1;
+  const max = Math.max(0, frames.length - 1);
+  seek.max = max;
+  rangeMin.max = max;
+  rangeMax.max = max;
+  computeDayStarts();
+  if (prevLen === 0) {
+    rangeLo = 0;
+    rangeHi = max;
+    idx = max;
+  } else if (wasAtEnd) {
+    rangeHi = max;
+  }
+  applyRangeUI();
   updateSaveLink();
 }
 
+function computeDayStarts() {
+  dayStarts = [];
+  let prevDay = null;
+  for (let i = 0; i < frames.length; i++) {
+    const day = frames[i].ts.slice(0, 10);
+    if (day !== prevDay) {
+      dayStarts.push(i);
+      prevDay = day;
+    }
+  }
+  renderDayMarks();
+}
+
+function renderDayMarks() {
+  dayMarks.innerHTML = '';
+  if (frames.length < 2) return;
+  for (const ds of dayStarts) {
+    const pct = (ds / (frames.length - 1)) * 100;
+    const m = document.createElement('span');
+    m.style.left = `${pct}%`;
+    dayMarks.appendChild(m);
+  }
+}
+
+function snapToDay(val) {
+  if (shiftDown || frames.length < 2) return val;
+  const tol = Math.max(2, Math.floor(frames.length * 0.01));
+  for (const ds of dayStarts) {
+    if (Math.abs(val - ds) <= tol) return ds;
+  }
+  return val;
+}
+
+function applyRangeUI() {
+  if (frames.length < 2) {
+    selBar.style.left = '0%';
+    selBar.style.width = '100%';
+    rangeStartLabel.textContent = '--';
+    rangeEndLabel.textContent = '--';
+    return;
+  }
+  rangeMin.value = rangeLo;
+  rangeMax.value = rangeHi;
+  const total = frames.length - 1;
+  const loPct = (rangeLo / total) * 100;
+  const hiPct = (rangeHi / total) * 100;
+  selBar.style.left = `${loPct}%`;
+  selBar.style.width = `${hiPct - loPct}%`;
+  rangeStartLabel.textContent = frames[rangeLo].ts.replace('T', ' ');
+  rangeEndLabel.textContent = frames[rangeHi].ts.replace('T', ' ');
+  seek.min = rangeLo;
+  seek.max = rangeHi;
+  if (idx < rangeLo) idx = rangeLo;
+  if (idx > rangeHi) idx = rangeHi;
+  updateSaveLink();
+}
+
+rangeMin.addEventListener('input', () => {
+  let v = parseInt(rangeMin.value, 10);
+  v = snapToDay(v);
+  if (v >= rangeHi) v = Math.max(0, rangeHi - 1);
+  rangeLo = v;
+  applyRangeUI();
+});
+
+rangeMax.addEventListener('input', () => {
+  let v = parseInt(rangeMax.value, 10);
+  v = snapToDay(v);
+  if (v <= rangeLo) v = Math.min(frames.length - 1, rangeLo + 1);
+  rangeHi = v;
+  applyRangeUI();
+});
+
+document.addEventListener('keydown', (e) => { if (e.key === 'Shift') shiftDown = true; });
+document.addEventListener('keyup', (e) => { if (e.key === 'Shift') shiftDown = false; });
+
 function updateSaveLink() {
   const fps = parseInt(fpsInput.value, 10) || 10;
-  saveLink.href = `/save?fps=${fps}`;
+  let saveUrl = `/save?fps=${fps}`;
+  if (frames.length && (rangeLo > 0 || rangeHi < frames.length - 1)) {
+    const s = frames[rangeLo].ts.replace('T', '_').replace(/:/g, '-');
+    const e = frames[rangeHi].ts.replace('T', '_').replace(/:/g, '-');
+    saveUrl += `&start=${s}&end=${e}`;
+  }
+  saveLink.href = saveUrl;
+  const day = daySel.value;
+  if (day) {
+    saveDay.href = `/save?fps=${fps}&start=${day}_00-00-00&end=${day}_23-59-59`;
+  } else {
+    saveDay.href = '#';
+  }
 }
+
+async function loadDays() {
+  const r = await fetch('/api/days');
+  const days = await r.json();
+  const prev = daySel.value;
+  daySel.innerHTML = '';
+  for (const d of days) {
+    const opt = document.createElement('option');
+    opt.value = d.day;
+    opt.textContent = `${d.day} (${d.count})`;
+    daySel.appendChild(opt);
+  }
+  if (prev && [...daySel.options].some(o => o.value === prev)) {
+    daySel.value = prev;
+  }
+  updateSaveLink();
+}
+
+daySel.addEventListener('change', updateSaveLink);
 
 function show(i) {
   if (!frames.length) return;
-  idx = Math.max(0, Math.min(frames.length - 1, i));
+  idx = Math.max(rangeLo, Math.min(rangeHi, i));
   const f = frames[idx];
   img.src = `/image/${f.name}`;
   tsLabel.textContent = f.ts.replace('T', ' ');
@@ -85,8 +253,8 @@ function show(i) {
 
 function tick() {
   if (!playing || !frames.length) return;
-  if (idx >= frames.length - 1) {
-    idx = 0;
+  if (idx >= rangeHi) {
+    idx = rangeLo;
   } else {
     idx++;
   }
@@ -111,15 +279,19 @@ seek.addEventListener('input', () => {
 });
 
 fpsInput.addEventListener('change', () => {
+  playing = true;
+  playBtn.textContent = 'Pause';
   restartTimer();
   updateSaveLink();
 });
 
 (async () => {
   await loadFrames();
+  await loadDays();
   if (frames.length) show(idx);
   restartTimer();
   setInterval(loadFrames, 30000);
+  setInterval(loadDays, 60000);
 })();
 </script>
 </body>

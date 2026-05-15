@@ -7,6 +7,7 @@ from pathlib import Path
 
 import requests
 import yaml
+from PIL import Image
 
 CONFIG_PATH = os.environ.get("CONFIG_PATH", "/config/config.yaml")
 IMAGE_DIR = Path(os.environ.get("IMAGE_DIR", "/data/images"))
@@ -27,6 +28,20 @@ def download(url, path):
     except Exception as e:
         print(f"[{datetime.now()}] download failed: {e}", flush=True)
         return False
+
+
+def looks_corrupt(path, white_threshold=240, ratio=0.9):
+    try:
+        with Image.open(path) as im:
+            im.load()
+            rgb = im.convert("RGB")
+            w, h = rgb.size
+            row = [rgb.getpixel((x, h - 1)) for x in range(w)]
+    except Exception as e:
+        print(f"[{datetime.now()}] image unreadable, skipping: {e}", flush=True)
+        return True
+    white = sum(1 for r, g, b in row if r >= white_threshold and g >= white_threshold and b >= white_threshold)
+    return white / len(row) >= ratio
 
 
 def sha256(path):
@@ -98,6 +113,12 @@ def main():
     prune_counter = 0
     while True:
         if download(url, temp):
+            if looks_corrupt(temp):
+                print(f"[{datetime.now()}] corrupt/partial image, skip", flush=True)
+                if temp.exists():
+                    temp.unlink()
+                time.sleep(interval)
+                continue
             new_hash = sha256(temp)
             old_hash = sha256(last) if last.exists() else None
             if new_hash != old_hash:

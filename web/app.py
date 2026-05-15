@@ -60,6 +60,17 @@ def api_frames(since: str | None = None):
     ])
 
 
+@app.get("/api/days")
+def api_days():
+    frames = list_frames()
+    counts = {}
+    for ts, _ in frames:
+        day = ts.strftime("%Y-%m-%d")
+        counts[day] = counts.get(day, 0) + 1
+    days = sorted(counts.items(), key=lambda x: x[0], reverse=True)
+    return [{"day": d, "count": c} for d, c in days]
+
+
 @app.get("/api/list")
 def api_list(page: int = 1, per_page: int = 60):
     frames = list_frames()
@@ -77,13 +88,28 @@ def api_list(page: int = 1, per_page: int = 60):
 
 
 @app.get("/image/{name}")
-def image(name: str):
+def image(name: str, download: int = 0):
     if not TIMESTAMP_RE.match(name):
         raise HTTPException(400, "bad name")
     p = IMAGE_DIR / name
     if not p.exists():
         raise HTTPException(404, "not found")
-    return FileResponse(p, media_type="image/jpeg")
+    headers = {"Content-Disposition": f'attachment; filename="{name}"'} if download else None
+    return FileResponse(p, media_type="image/jpeg", headers=headers)
+
+
+@app.delete("/image/{name}")
+def delete_image(name: str):
+    if not TIMESTAMP_RE.match(name):
+        raise HTTPException(400, "bad name")
+    p = IMAGE_DIR / name
+    if not p.exists():
+        raise HTTPException(404, "not found")
+    try:
+        p.unlink()
+    except OSError as e:
+        raise HTTPException(500, f"unlink failed: {e}")
+    return {"deleted": name}
 
 
 @app.get("/save")
