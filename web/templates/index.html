@@ -35,6 +35,9 @@
   .sidebar .preset-day { border-color: #6a7c8a; }
   .sidebar .preset-sunset { border-color: #c2614e; }
   .sidebar .preset-night { border-color: #3a4f7a; background: #161a26; }
+  .sidebar .preset-event { border-color: #ffd76a; background: #2a2515; }
+  .rangebar .daymarks span.event-mark { background: #ffd76a; width: 3px; box-shadow: 0 0 4px rgba(255,215,106,0.6); }
+  .rangebar .anchors span.event-anchor { color: #ffd76a; font-weight: 600; }
   .camera-switcher { position: fixed; top: 0.5rem; right: 0.5rem; display: flex; flex-direction: column; gap: 0.3rem; z-index: 100; }
   .camera-switcher button { font-size: 0.8rem; padding: 0.4rem 0.8rem; opacity: 0.6; }
   .camera-switcher button.active { opacity: 1; background: #2a3b5a; border-color: #8ab4ff; }
@@ -304,6 +307,7 @@ async function loadEvents() {
   try {
     const r = await fetch(withCam('/api/events'));
     events = await r.json();
+    if (frames.length) { computeAnchors(); buildPresets(); }
   } catch (e) { console.warn('events load failed', e); }
 }
 
@@ -334,7 +338,6 @@ function spawnEventDialog(ev) {
   const t = setTimeout(() => {
     fadeOutDialog(dialog);
     eventTimers.delete(ev.id);
-    shownEvents.delete(ev.id);
   }, EVENT_VISIBLE_MS);
   eventTimers.set(ev.id, t);
 }
@@ -475,6 +478,18 @@ function addPresetButton(label, cls, lo, hi) {
   rangePresets.appendChild(btn);
 }
 
+function eventToRange(ev) {
+  let lo = -1, hi = -1;
+  for (let i = 0; i < frames.length; i++) {
+    if (frames[i].ts >= ev.start_ts) { lo = i; break; }
+  }
+  for (let i = frames.length - 1; i >= 0; i--) {
+    if (frames[i].ts <= ev.end_ts) { hi = i; break; }
+  }
+  if (lo < 0 || hi < 0 || lo > hi) return null;
+  return { lo, hi };
+}
+
 function buildPresets() {
   rangePresets.innerHTML = '';
   if (!frames.length) return;
@@ -533,6 +548,14 @@ function buildPresets() {
         if (lo >= 0 && hi >= 0 && lo < hi) addPresetButton(`Night ${md} → ${fmtMD(nextDay)}`, 'preset-night', lo, hi);
       }
     }
+  }
+
+  for (const ev of events) {
+    const r = eventToRange(ev);
+    if (!r) continue;
+    const md = fmtMD(ev.start_ts.slice(0, 10));
+    const msg = ev.message.length > 28 ? ev.message.slice(0, 25) + '…' : ev.message;
+    addPresetButton(`★ ${md} ${msg}`, 'preset-event', r.lo, r.hi);
   }
 
   if (sunTimes[todayKey]?.sunrise) {
@@ -647,6 +670,12 @@ function computeAnchors() {
       }
     }
   }
+  for (const ev of events) {
+    const r = eventToRange(ev);
+    if (!r) continue;
+    const msg = ev.message.length > 18 ? ev.message.slice(0, 15) + '…' : ev.message;
+    anchors.push({ idx: r.lo, label: `★ ${msg}`, kind: 'event' });
+  }
   anchors.sort((a, b) => a.idx - b.idx);
   renderAnchors();
 }
@@ -671,10 +700,12 @@ function renderAnchors() {
     const pct = (a.idx / total) * 100;
     const m = document.createElement('span');
     m.style.left = `${pct}%`;
+    if (a.kind === 'event') m.classList.add('event-mark');
     dayMarks.appendChild(m);
     const lbl = document.createElement('span');
     lbl.style.left = `${pct}%`;
     lbl.textContent = a.label;
+    if (a.kind === 'event') lbl.classList.add('event-anchor');
     lbl.title = frames[a.idx].ts.replace('T', ' ');
     anchorLabels.appendChild(lbl);
   }
