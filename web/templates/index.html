@@ -315,6 +315,7 @@ async function loadEvents() {
 const EVENT_VISIBLE_MS = 10000;
 const EVENT_FADE_OUT_MS = 1500;
 const eventTimers = new Map();
+let eventsInitialized = false;
 
 function fadeOutDialog(el) {
   if (!el || el.classList.contains('fading')) return;
@@ -367,7 +368,7 @@ function renderActiveEvents() {
     if (tMs >= sMs && tMs <= eMs) {
       active.add(ev.id);
       if (!shownEvents.has(ev.id)) {
-        spawnEventDialog(ev);
+        if (eventsInitialized) spawnEventDialog(ev);
         shownEvents.add(ev.id);
       }
     }
@@ -381,6 +382,7 @@ function renderActiveEvents() {
       fadeOutDialog(el);
     }
   }
+  eventsInitialized = true;
 }
 
 document.addEventListener('keydown', (e) => {
