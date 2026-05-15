@@ -23,6 +23,8 @@
   label { display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; }
   .rangebar { width: 100%; }
   .rangebar .ticks { display: flex; justify-content: space-between; font-size: 0.7rem; color: #788; margin-bottom: 0.15rem; font-variant-numeric: tabular-nums; }
+  .rangebar .anchors { position: relative; height: 14px; font-size: 0.6rem; color: #99a; font-variant-numeric: tabular-nums; pointer-events: none; }
+  .rangebar .anchors span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
   .rangebar .dual { position: relative; height: 24px; }
   .rangebar .track { position: absolute; top: 10px; left: 0; right: 0; height: 4px; background: #1f2630; border-radius: 2px; }
   .rangebar .selected { position: absolute; top: 0; height: 100%; background: #8ab4ff; border-radius: 2px; }
@@ -54,6 +56,7 @@
           <span id="rangeStartLabel">--</span>
           <span id="rangeEndLabel">--</span>
         </div>
+        <div class="anchors" id="anchorLabels"></div>
         <div class="dual">
           <div class="track"><div class="selected" id="selBar"></div></div>
           <div class="daymarks" id="dayMarks"></div>
@@ -92,10 +95,11 @@ const rangeMin = document.getElementById('rangeMin');
 const rangeMax = document.getElementById('rangeMax');
 const selBar = document.getElementById('selBar');
 const dayMarks = document.getElementById('dayMarks');
+const anchorLabels = document.getElementById('anchorLabels');
 const rangeStartLabel = document.getElementById('rangeStartLabel');
 const rangeEndLabel = document.getElementById('rangeEndLabel');
 
-let dayStarts = [];
+let anchors = [];
 let shiftDown = false;
 let rangeLo = 0;
 let rangeHi = 0;
@@ -134,7 +138,7 @@ async function loadFrames() {
   seek.max = max;
   rangeMin.max = max;
   rangeMax.max = max;
-  computeDayStarts();
+  computeAnchors();
   if (prevLen === 0) {
     rangeLo = 0;
     rangeHi = max;
@@ -146,35 +150,63 @@ async function loadFrames() {
   updateSaveLink();
 }
 
-function computeDayStarts() {
-  dayStarts = [];
-  let prevDay = null;
-  for (let i = 0; i < frames.length; i++) {
-    const day = frames[i].ts.slice(0, 10);
-    if (day !== prevDay) {
-      dayStarts.push(i);
-      prevDay = day;
+function computeAnchors() {
+  anchors = [];
+  if (!frames.length) { renderAnchors(); return; }
+  const byDay = {};
+  frames.forEach((f, i) => {
+    const day = f.ts.slice(0, 10);
+    if (!byDay[day]) byDay[day] = [];
+    byDay[day].push({ i, ts: f.ts });
+  });
+  const targets = [
+    { h: 0, m: 0, suffix: '' },
+    { h: 5, m: 40, suffix: ' sunrise' },
+    { h: 20, m: 0, suffix: ' sunset' },
+  ];
+  for (const day of Object.keys(byDay)) {
+    const monthDay = day.slice(5);
+    for (const t of targets) {
+      const targetMin = t.h * 60 + t.m;
+      let best = null, bestDiff = Infinity;
+      for (const f of byDay[day]) {
+        const [hh, mm] = f.ts.slice(11).split(':').map(Number);
+        const min = hh * 60 + mm;
+        const diff = Math.abs(min - targetMin);
+        if (diff < bestDiff) { bestDiff = diff; best = f; }
+      }
+      if (best && bestDiff <= 120) {
+        anchors.push({ idx: best.i, label: monthDay + t.suffix });
+      }
     }
   }
-  renderDayMarks();
+  anchors.sort((a, b) => a.idx - b.idx);
+  renderAnchors();
 }
 
-function renderDayMarks() {
+function renderAnchors() {
   dayMarks.innerHTML = '';
+  anchorLabels.innerHTML = '';
   if (frames.length < 2) return;
-  for (const ds of dayStarts) {
-    const pct = (ds / (frames.length - 1)) * 100;
+  const total = frames.length - 1;
+  for (const a of anchors) {
+    const pct = (a.idx / total) * 100;
     const m = document.createElement('span');
     m.style.left = `${pct}%`;
     dayMarks.appendChild(m);
+    const lbl = document.createElement('span');
+    lbl.style.left = `${pct}%`;
+    lbl.textContent = a.label;
+    lbl.title = frames[a.idx].ts.replace('T', ' ');
+    anchorLabels.appendChild(lbl);
   }
 }
 
 function snapToDay(val) {
   if (shiftDown || frames.length < 2) return val;
   const tol = Math.max(2, Math.floor(frames.length * 0.01));
-  for (const ds of dayStarts) {
-    if (Math.abs(val - ds) <= tol) return ds;
+  for (const a of anchors) {
+    if (Math.abs(val - a.idx) <= tol) return a.idx;
   }
   return val;
 }
@@ -195,7 +227,11 @@ function applyRangeUI() {
   selBar.style.left = `${loPct}%`;
   selBar.style.width = `${hiPct - loPct}%`;
   rangeStartLabel.textContent = frames[rangeLo].ts.replace('T', ' ');
-  rangeEndLabel.textContent = frames[rangeHi].ts.replace('T', ' ');
+  const atCurrent = rangeHi === frames.length - 1;
+  rangeEndLabel.textContent = atCurrent
+    ? `CURRENT (${frames[rangeHi].ts.replace('T', ' ')})`
+    : frames[rangeHi].ts.replace('T', ' ');
+  rangeEndLabel.style.color = atCurrent ? '#7fd17a' : '#788';
   seek.min = rangeLo;
   seek.max = rangeHi;
   if (idx < rangeLo) idx = rangeLo;
