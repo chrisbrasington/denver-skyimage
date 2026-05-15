@@ -14,6 +14,8 @@
   .sidebar .preset-everything { background: #2a3b5a; }
   .sidebar .preset-today { background: #2d4a2d; }
   .stage { position: relative; flex: 1; display: flex; justify-content: center; align-items: center; padding: 0; background: #0b0d12; cursor: pointer; min-height: 0; min-width: 0; }
+  .frame-wrap { position: relative; display: inline-block; max-width: 100%; max-height: 100%; line-height: 0; }
+  .frame-wrap img { display: block; max-width: 100%; max-height: 100%; }
   .fs-hint { position: absolute; top: 1rem; right: 1rem; width: 110px; height: 110px; color: #e6e9ef; opacity: 0.45; pointer-events: none; animation: fsPulse 2.4s ease-in-out infinite; filter: drop-shadow(0 0 8px rgba(0,0,0,0.7)); }
   .fs-hint svg { width: 100%; height: 100%; }
   @keyframes fsPulse {
@@ -66,14 +68,16 @@
 <div class="main">
   <div class="sidebar" id="rangePresets"></div>
   <div class="stage" id="stage">
-  <img id="frame" alt="sky">
-  <div class="fs-hint" aria-hidden="true">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-      <polyline points="4 9 4 4 9 4"></polyline>
-      <polyline points="20 9 20 4 15 4"></polyline>
-      <polyline points="4 15 4 20 9 20"></polyline>
-      <polyline points="20 15 20 20 15 20"></polyline>
-    </svg>
+  <div class="frame-wrap">
+    <img id="frame" alt="sky">
+    <div class="fs-hint" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="4 9 4 4 9 4"></polyline>
+        <polyline points="20 9 20 4 15 4"></polyline>
+        <polyline points="4 15 4 20 9 20"></polyline>
+        <polyline points="20 15 20 20 15 20"></polyline>
+      </svg>
+    </div>
   </div>
 </div>
 </div>
