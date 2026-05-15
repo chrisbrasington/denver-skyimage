@@ -253,10 +253,11 @@ function handleTagClick(e) {
   if (x < 0 || x > 1 || y < 0 || y > 1) return;
   pendingClick = { x_pct: x, y_pct: y };
   evPosHint.textContent = `pixel at ${(x*100).toFixed(1)}%, ${(y*100).toFixed(1)}%`;
-  const currentTs = frames[idx]?.ts ? tsToInputValue(frames[idx].ts) : '';
+  const startTs = frames[idx]?.ts ? tsToInputValue(frames[idx].ts) : '';
+  const endTs = frames[rangeHi]?.ts ? tsToInputValue(frames[rangeHi].ts) : startTs;
   evMsg.value = '';
-  evStart.value = currentTs;
-  evEnd.value = currentTs;
+  evStart.value = startTs;
+  evEnd.value = endTs;
   eventOverlay.classList.add('show');
   evMsg.focus();
 }
@@ -306,7 +307,7 @@ async function loadEvents() {
   } catch (e) { console.warn('events load failed', e); }
 }
 
-const EVENT_VISIBLE_MS = 50000;
+const EVENT_VISIBLE_MS = 10000;
 const EVENT_FADE_OUT_MS = 1500;
 const eventTimers = new Map();
 
