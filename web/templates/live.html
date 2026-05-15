@@ -14,7 +14,7 @@
   .sidebar .preset-everything { background: #2a3b5a; }
   .sidebar .preset-today { background: #2d4a2d; }
   .stage { position: relative; flex: 1; display: flex; justify-content: center; align-items: center; padding: 0; background: #0b0d12; cursor: pointer; min-height: 0; min-width: 0; }
-  .fs-hint { position: absolute; top: 1rem; right: 1rem; width: 110px; height: 110px; color: #e6e9ef; opacity: 0.45; pointer-events: none; animation: fsPulse 2.4s ease-in-out infinite; filter: drop-shadow(0 0 8px rgba(0,0,0,0.7)); }
+  .fs-hint { position: absolute; top: 1rem; right: 1rem; width: 110px; height: 110px; color: #e6e9ef; opacity: 0.45; pointer-events: none; animation: fsPulse 2.4s ease-in-out infinite; filter: drop-shadow(0 0 8px rgba(0,0,0,0.7)); transition: top 0.15s, right 0.15s; }
   .fs-hint svg { width: 100%; height: 100%; }
   @keyframes fsPulse {
     0%, 100% { opacity: 0.30; transform: scale(0.96); }
@@ -145,6 +145,20 @@ const dayMarks = document.getElementById('dayMarks');
 const anchorLabels = document.getElementById('anchorLabels');
 const rangePresets = document.getElementById('rangePresets');
 const thumbTooltip = document.getElementById('thumbTooltip');
+const fsHint = document.querySelector('.fs-hint');
+
+function positionFsHint() {
+  if (!fsHint) return;
+  if (document.fullscreenElement) return;
+  const imgRect = img.getBoundingClientRect();
+  const stageRect = stage.getBoundingClientRect();
+  if (imgRect.width === 0) return;
+  fsHint.style.top = `${imgRect.top - stageRect.top + 16}px`;
+  fsHint.style.right = `${stageRect.right - imgRect.right + 16}px`;
+}
+img.addEventListener('load', positionFsHint);
+window.addEventListener('resize', positionFsHint);
+document.addEventListener('fullscreenchange', positionFsHint);
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function formatTs(iso) {
