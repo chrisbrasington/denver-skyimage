@@ -12,14 +12,10 @@
   .stage { position: relative; flex: 1; display: flex; justify-content: center; align-items: center; padding: 1rem; background: #0b0d12; min-width: 0; }
   .stage.tag-mode { cursor: crosshair; }
   .stage.tag-mode img { outline: 2px dashed #ffd76a; outline-offset: -2px; }
-  .event-dialog { position: absolute; transform: translate(-50%, -100%); background: rgba(20,24,32,0.92); color: #fff; padding: 0.5rem 0.9rem; border-radius: 8px; font-size: 1rem; max-width: 18rem; border: 2px solid #ffd76a; box-shadow: 0 4px 12px rgba(0,0,0,0.6); pointer-events: none; opacity: 0; animation: eventShow 5s ease-out forwards; z-index: 40; text-align: center; line-height: 1.25; }
+  .event-dialog { position: absolute; transform: translate(-50%, -100%) translateY(10px); background: rgba(20,24,32,0.92); color: #fff; padding: 0.5rem 0.9rem; border-radius: 8px; font-size: 1rem; max-width: 18rem; border: 2px solid #ffd76a; box-shadow: 0 4px 12px rgba(0,0,0,0.6); pointer-events: none; opacity: 0; transition: opacity 0.4s ease-out, transform 0.4s ease-out; z-index: 40; text-align: center; line-height: 1.25; }
+  .event-dialog.shown { opacity: 1; transform: translate(-50%, -100%) translateY(0); }
+  .event-dialog.fading { opacity: 0; transform: translate(-50%, -100%) translateY(-4px); transition: opacity 1.5s ease-in, transform 1.5s ease-in; }
   .event-dialog::after { content: ''; position: absolute; left: 50%; bottom: -8px; transform: translateX(-50%); border: 6px solid transparent; border-top-color: #ffd76a; }
-  @keyframes eventShow {
-    0%   { opacity: 0; transform: translate(-50%, -100%) translateY(10px); }
-    8%   { opacity: 1; transform: translate(-50%, -100%) translateY(0); }
-    70%  { opacity: 1; transform: translate(-50%, -100%) translateY(0); }
-    100% { opacity: 0; transform: translate(-50%, -100%) translateY(-4px); }
-  }
   .event-form-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 200; }
   .event-form-overlay.show { display: flex; }
   .event-form { background: #161a26; border: 1px solid #333; border-radius: 8px; padding: 1.25rem; min-width: 22rem; display: flex; flex-direction: column; gap: 0.75rem; }
@@ -310,6 +306,17 @@ async function loadEvents() {
   } catch (e) { console.warn('events load failed', e); }
 }
 
+const EVENT_VISIBLE_MS = 10000;
+const EVENT_FADE_OUT_MS = 1500;
+const eventTimers = new Map();
+
+function fadeOutDialog(el) {
+  if (!el || el.classList.contains('fading')) return;
+  el.classList.remove('shown');
+  el.classList.add('fading');
+  setTimeout(() => el.remove(), EVENT_FADE_OUT_MS + 100);
+}
+
 function spawnEventDialog(ev) {
   const dialog = document.createElement('div');
   dialog.className = 'event-dialog';
@@ -321,8 +328,14 @@ function spawnEventDialog(ev) {
   const ypx = imgRect.top - stageRect.top + ev.y_pct * imgRect.height;
   dialog.style.left = `${xpx}px`;
   dialog.style.top = `${ypx - 14}px`;
-  dialog.addEventListener('animationend', () => dialog.remove());
   stage.appendChild(dialog);
+  requestAnimationFrame(() => dialog.classList.add('shown'));
+  const t = setTimeout(() => {
+    fadeOutDialog(dialog);
+    eventTimers.delete(ev.id);
+    shownEvents.delete(ev.id);
+  }, EVENT_VISIBLE_MS);
+  eventTimers.set(ev.id, t);
 }
 
 function renderActiveEvents() {
@@ -340,9 +353,11 @@ function renderActiveEvents() {
   }
   for (const id of [...shownEvents]) {
     if (!active.has(id)) {
+      const t = eventTimers.get(id);
+      if (t) { clearTimeout(t); eventTimers.delete(id); }
       shownEvents.delete(id);
       const el = document.querySelector(`.event-dialog[data-event-id="${id}"]`);
-      if (el) el.remove();
+      fadeOutDialog(el);
     }
   }
 }
