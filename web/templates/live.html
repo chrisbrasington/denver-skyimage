@@ -66,7 +66,7 @@
   </div>
   <div class="row">
     <span class="slabel">Playback</span>
-    <button id="playBtn">Pause</button>
+    {% if not touch_mode %}<button id="playBtn">Pause</button>{% endif %}
     <span class="ts" id="tsLabel">--</span>
     <div class="slot"><input type="range" id="seek" class="seekbar" min="0" max="0" value="0"></div>
   </div>
@@ -93,6 +93,8 @@ const stage = document.getElementById('stage');
 const seek = document.getElementById('seek');
 const tsLabel = document.getElementById('tsLabel');
 const playBtn = document.getElementById('playBtn');
+const TOUCH_MODE = {{ 'true' if touch_mode else 'false' }};
+function setPlayBtn(text) { if (playBtn) playBtn.textContent = text; }
 const rangeMin = document.getElementById('rangeMin');
 const rangeMax = document.getElementById('rangeMax');
 const selBar = document.getElementById('selBar');
@@ -249,7 +251,7 @@ rangeMin.addEventListener('input', () => {
   if (v >= rangeHi) v = Math.max(0, rangeHi - 1);
   rangeLo = v;
   playing = false;
-  playBtn.textContent = 'Play';
+  setPlayBtn('Play');
   applyRangeUI();
   show(rangeLo);
 });
@@ -260,7 +262,7 @@ rangeMax.addEventListener('input', () => {
   if (v <= rangeLo) v = Math.min(frames.length - 1, rangeLo + 1);
   rangeHi = v;
   playing = false;
-  playBtn.textContent = 'Play';
+  setPlayBtn('Play');
   applyRangeUI();
   show(rangeHi);
 });
@@ -269,7 +271,7 @@ function resumeFromStart() {
   idx = rangeLo;
   show(idx);
   playing = true;
-  playBtn.textContent = 'Pause';
+  setPlayBtn('Pause');
 }
 
 rangeMin.addEventListener('change', resumeFromStart);
@@ -314,7 +316,7 @@ function applyIdleReset() {
   idx = rangeLo;
   show(idx);
   playing = true;
-  playBtn.textContent = 'Pause';
+  setPlayBtn('Pause');
 }
 
 function tick() {
@@ -337,19 +339,28 @@ function restartTimer() {
   timer = setInterval(tick, 1000 / FPS);
 }
 
-playBtn.addEventListener('click', (e) => {
-  e.stopPropagation();
-  playing = !playing;
-  playBtn.textContent = playing ? 'Pause' : 'Play';
-});
+if (playBtn) {
+  playBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    playing = !playing;
+    setPlayBtn(playing ? 'Pause' : 'Play');
+  });
+}
 
 seek.addEventListener('input', () => {
-  playing = false;
-  playBtn.textContent = 'Play';
+  if (!TOUCH_MODE) {
+    playing = false;
+    setPlayBtn('Play');
+  }
   show(parseInt(seek.value, 10));
 });
 
-[rangeMin, rangeMax, seek, playBtn].forEach(el => {
+seek.addEventListener('change', () => {
+  playing = true;
+  setPlayBtn('Pause');
+});
+
+[rangeMin, rangeMax, seek, playBtn].filter(Boolean).forEach(el => {
   el.addEventListener('click', e => e.stopPropagation());
   el.addEventListener('touchstart', e => e.stopPropagation(), { passive: true });
 });

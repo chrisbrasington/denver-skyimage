@@ -59,12 +59,12 @@ def browse(request: Request):
 
 @app.get("/live", response_class=HTMLResponse)
 def live(request: Request):
-    return TEMPLATES.TemplateResponse(request, "live.html")
+    return TEMPLATES.TemplateResponse(request, "live.html", {"touch_mode": False})
 
 
 @app.get("/touch", response_class=HTMLResponse)
 def touch(request: Request):
-    return TEMPLATES.TemplateResponse(request, "live.html")
+    return TEMPLATES.TemplateResponse(request, "live.html", {"touch_mode": True})
 
 
 @app.get("/api/frames")

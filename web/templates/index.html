@@ -358,6 +358,11 @@ seek.addEventListener('input', () => {
   show(parseInt(seek.value, 10));
 });
 
+seek.addEventListener('change', () => {
+  playing = true;
+  playBtn.textContent = 'Pause';
+});
+
 fpsInput.addEventListener('change', () => {
   playing = true;
   playBtn.textContent = 'Pause';
