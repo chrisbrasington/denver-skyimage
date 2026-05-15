@@ -79,9 +79,21 @@ def parse_ts(s):
         return None
 
 
+def _check_camera_name(name: str) -> str:
+    if name not in CAMERA_NAMES:
+        raise HTTPException(404, f"unknown camera: {name}")
+    return name
+
+
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
     return TEMPLATES.TemplateResponse(request, "index.html")
+
+
+@app.get("/camera/{name}", response_class=HTMLResponse)
+def index_for_camera(name: str, request: Request):
+    _check_camera_name(name)
+    return TEMPLATES.TemplateResponse(request, "index.html", {"camera_name": name})
 
 
 @app.get("/browse", response_class=HTMLResponse)
@@ -94,9 +106,21 @@ def live(request: Request):
     return TEMPLATES.TemplateResponse(request, "live.html", {"touch_mode": False})
 
 
+@app.get("/live/{name}", response_class=HTMLResponse)
+def live_for_camera(name: str, request: Request):
+    _check_camera_name(name)
+    return TEMPLATES.TemplateResponse(request, "live.html", {"touch_mode": False, "camera_name": name})
+
+
 @app.get("/touch", response_class=HTMLResponse)
 def touch(request: Request):
     return TEMPLATES.TemplateResponse(request, "live.html", {"touch_mode": True})
+
+
+@app.get("/touch/{name}", response_class=HTMLResponse)
+def touch_for_camera(name: str, request: Request):
+    _check_camera_name(name)
+    return TEMPLATES.TemplateResponse(request, "live.html", {"touch_mode": True, "camera_name": name})
 
 
 @app.get("/api/cameras")

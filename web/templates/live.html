@@ -84,8 +84,9 @@
   </div>
 </div>
 <script>
+const SERVER_CAMERA = {% if camera_name %}{{ camera_name | tojson }}{% else %}null{% endif %};
 const urlParams = new URLSearchParams(window.location.search);
-const CAMERA = urlParams.get('camera') || urlParams.get('cam') || '';
+const CAMERA = SERVER_CAMERA || urlParams.get('camera') || urlParams.get('cam') || '';
 const camQS = CAMERA ? `camera=${encodeURIComponent(CAMERA)}` : '';
 function withCam(url) {
   if (!CAMERA) return url;
@@ -538,10 +539,9 @@ async function buildCameraSwitcher() {
       if (name === active) btn.classList.add('active');
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const u = new URL(window.location.href);
-        if (name === def) { u.searchParams.delete('camera'); u.searchParams.delete('cam'); }
-        else { u.searchParams.set('camera', name); u.searchParams.delete('cam'); }
-        window.location.href = u.toString();
+        if (name === active) return;
+        const base = window.location.pathname.startsWith('/touch') ? '/touch' : '/live';
+        window.location.href = `${base}/${encodeURIComponent(name)}`;
       });
       btn.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
       container.appendChild(btn);
