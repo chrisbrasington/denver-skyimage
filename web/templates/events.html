@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Events — Denver Sky</title>
+<style>
+  body { margin: 0; background: #0b0d12; color: #e6e9ef; font-family: system-ui, sans-serif; }
+  header { padding: 0.6rem 1rem; display: flex; gap: 1rem; align-items: center; border-bottom: 1px solid #222; flex-wrap: wrap; }
+  header a { color: #8ab4ff; text-decoration: none; }
+  header a:hover { text-decoration: underline; }
+  select, button, input { font-family: inherit; }
+  header select { background: #1f2630; color: #e6e9ef; border: 1px solid #333; padding: 0.35rem 0.6rem; border-radius: 4px; font-size: 0.85rem; }
+  button { background: #1f2630; color: #e6e9ef; border: 1px solid #333; padding: 0.35rem 0.7rem; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+  button:hover:not(:disabled) { background: #2a3340; }
+  button:disabled { opacity: 0.4; cursor: default; }
+  .danger { background: #5a2222; border-color: #7a3030; }
+  .danger:hover:not(:disabled) { background: #7a3030; }
+  #counter { margin-left: auto; color: #888; font-size: 0.85rem; }
+  table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
+  th, td { padding: 0.5rem 0.6rem; border-bottom: 1px solid #1c1f26; font-size: 0.85rem; vertical-align: middle; }
+  th { text-align: left; color: #8ab4ff; font-weight: 600; background: #0e1118; position: sticky; top: 0; }
+  td input[type=text] { width: 100%; min-width: 18rem; background: #0b0d12; color: #e6e9ef; border: 1px solid #2a3340; border-radius: 3px; padding: 0.3rem 0.5rem; font-size: 0.85rem; }
+  td input[type=datetime-local] { background: #0b0d12; color: #e6e9ef; border: 1px solid #2a3340; border-radius: 3px; padding: 0.3rem 0.5rem; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+  td.pos, td.created, td.id { color: #788; font-variant-numeric: tabular-nums; font-size: 0.75rem; }
+  td.actions { white-space: nowrap; display: flex; gap: 0.3rem; }
+  tr.dirty { background: #14202a; }
+  .empty { padding: 2rem; text-align: center; color: #788; }
+</style>
+</head>
+<body>
+<header>
+  <strong>Denver Sky</strong>
+  <a href="/">Live</a>
+  <a href="/browse">Browse</a>
+  <a href="/events">Events</a>
+  <label style="font-size:0.85rem;color:#aab;">Camera <select id="camFilter"><option value="">All</option></select></label>
+  <button id="clearAllBtn" class="danger">Clear all</button>
+  <span id="counter">--</span>
+</header>
+<table id="tbl">
+  <thead>
+    <tr>
+      <th>Camera</th>
+      <th>Position</th>
+      <th>Message</th>
+      <th>Start</th>
+      <th>End</th>
+      <th>Created</th>
+      <th>ID</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody id="rows"></tbody>
+</table>
+<div class="empty" id="empty" style="display:none;">No events.</div>
+<script>
+const rows = document.getElementById('rows');
+const counter = document.getElementById('counter');
+const empty = document.getElementById('empty');
+const camFilter = document.getElementById('camFilter');
+
+function toInputTs(iso) {
+  return (iso || '').slice(0, 19);
+}
+
+async function loadCameras() {
+  try {
+    const r = await fetch('/api/cameras');
+    const data = await r.json();
+    for (const c of (data.cameras || [])) {
+      camFilter.appendChild(new Option(c, c));
+    }
+  } catch (e) { console.warn('cameras failed', e); }
+}
+
+async function loadAll() {
+  rows.innerHTML = '';
+  empty.style.display = 'none';
+  let all = [];
+  try {
+    const r = await fetch('/api/events?everywhere=1');
+    all = await r.json();
+  } catch (e) {
+    counter.textContent = 'error';
+    return;
+  }
+  const filter = camFilter.value;
+  const list = filter ? all.filter(e => e.camera === filter) : all;
+  list.sort((a, b) => (a.start_ts > b.start_ts ? -1 : 1));
+  counter.textContent = `${list.length} event${list.length === 1 ? '' : 's'}`;
+  if (!list.length) {
+    empty.style.display = 'block';
+    return;
+  }
+  for (const ev of list) {
+    rows.appendChild(buildRow(ev));
+  }
+}
+
+function buildRow(ev) {
+  const tr = document.createElement('tr');
+  tr.dataset.eventId = ev.id;
+
+  const cellCam = document.createElement('td');
+  cellCam.textContent = ev.camera || '';
+
+  const cellPos = document.createElement('td');
+  cellPos.className = 'pos';
+  cellPos.textContent = `${(ev.x_pct * 100).toFixed(1)}%, ${(ev.y_pct * 100).toFixed(1)}%`;
+
+  const cellMsg = document.createElement('td');
+  const msgIn = document.createElement('input');
+  msgIn.type = 'text';
+  msgIn.maxLength = 200;
+  msgIn.value = ev.message || '';
+  cellMsg.appendChild(msgIn);
+
+  const cellStart = document.createElement('td');
+  const startIn = document.createElement('input');
+  startIn.type = 'datetime-local';
+  startIn.step = 1;
+  startIn.value = toInputTs(ev.start_ts);
+  cellStart.appendChild(startIn);
+
+  const cellEnd = document.createElement('td');
+  const endIn = document.createElement('input');
+  endIn.type = 'datetime-local';
+  endIn.step = 1;
+  endIn.value = toInputTs(ev.end_ts);
+  cellEnd.appendChild(endIn);
+
+  const cellCreated = document.createElement('td');
+  cellCreated.className = 'created';
+  cellCreated.textContent = (ev.created_ts || '').replace('T', ' ').slice(0, 19);
+
+  const cellId = document.createElement('td');
+  cellId.className = 'id';
+  cellId.textContent = ev.id;
+
+  const cellActions = document.createElement('td');
+  cellActions.className = 'actions';
+  const saveBtn = document.createElement('button');
+  saveBtn.textContent = 'Save';
+  saveBtn.disabled = true;
+  const delBtn = document.createElement('button');
+  delBtn.textContent = 'Delete';
+  delBtn.className = 'danger';
+  cellActions.append(saveBtn, delBtn);
+
+  function markDirty() {
+    saveBtn.disabled = false;
+    tr.classList.add('dirty');
+  }
+  [msgIn, startIn, endIn].forEach(inp => inp.addEventListener('input', markDirty));
+
+  saveBtn.addEventListener('click', async () => {
+    const msg = msgIn.value.trim();
+    if (!msg) { alert('Message required'); return; }
+    let s = startIn.value;
+    let e = endIn.value;
+    if (!s || !e) { alert('Start and end required'); return; }
+    if (s.length === 16) s += ':00';
+    if (e.length === 16) e += ':00';
+    if (s > e) { alert('Start must be before end'); return; }
+    saveBtn.disabled = true;
+    try {
+      const r = await fetch(`/api/events/${ev.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msg, start_ts: s, end_ts: e }),
+      });
+      if (!r.ok) throw new Error(await r.text() || `HTTP ${r.status}`);
+      const updated = await r.json();
+      ev.message = updated.message;
+      ev.start_ts = updated.start_ts;
+      ev.end_ts = updated.end_ts;
+      msgIn.value = updated.message;
+      startIn.value = toInputTs(updated.start_ts);
+      endIn.value = toInputTs(updated.end_ts);
+      tr.classList.remove('dirty');
+    } catch (err) {
+      saveBtn.disabled = false;
+      alert(`Save failed: ${err.message}`);
+    }
+  });
+
+  delBtn.addEventListener('click', async () => {
+    if (!confirm(`Delete event:\n"${ev.message}" (${ev.start_ts} → ${ev.end_ts})?`)) return;
+    try {
+      const r = await fetch(`/api/events/${ev.id}`, { method: 'DELETE' });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      tr.remove();
+      const remain = rows.querySelectorAll('tr').length;
+      counter.textContent = `${remain} event${remain === 1 ? '' : 's'}`;
+      if (!remain) empty.style.display = 'block';
+    } catch (err) { alert(`Delete failed: ${err.message}`); }
+  });
+
+  tr.append(cellCam, cellPos, cellMsg, cellStart, cellEnd, cellCreated, cellId, cellActions);
+  return tr;
+}
+
+document.getElementById('clearAllBtn').addEventListener('click', async () => {
+  const filter = camFilter.value;
+  const label = filter ? `events for camera "${filter}"` : 'ALL events across ALL cameras';
+  if (!confirm(`Delete ${label}? This cannot be undone.`)) return;
+  if (!confirm('Really? This cannot be undone.')) return;
+  const url = filter ? `/api/events?camera=${encodeURIComponent(filter)}` : '/api/events';
+  try {
+    const r = await fetch(url, { method: 'DELETE' });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    await loadAll();
+  } catch (e) { alert(`Clear failed: ${e.message}`); }
+});
+
+camFilter.addEventListener('change', loadAll);
+
+(async () => {
+  await loadCameras();
+  await loadAll();
+})();
+</script>
+</body>
+</html>
