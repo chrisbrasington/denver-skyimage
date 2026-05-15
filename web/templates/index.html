@@ -164,8 +164,8 @@ function computeAnchors() {
     const monthDay = day.slice(5);
     const sun = sunTimes[day] || {};
     const targets = [{ time: '00:00', suffix: '' }];
-    if (sun.sunrise) targets.push({ time: sun.sunrise, suffix: ' sunrise' });
-    if (sun.sunset) targets.push({ time: sun.sunset, suffix: ' sunset' });
+    if (sun.sunrise) targets.push({ time: sun.sunrise, suffix: ` sunrise ${sun.sunrise}` });
+    if (sun.sunset) targets.push({ time: sun.sunset, suffix: ` sunset ${sun.sunset}` });
     for (const t of targets) {
       const [th, tm] = t.time.split(':').map(Number);
       const targetMin = th * 60 + tm;
