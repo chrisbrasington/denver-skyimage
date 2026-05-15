@@ -5,3 +5,4 @@ videos
 pullvideo.ps1
 sample
 events
+*.log
