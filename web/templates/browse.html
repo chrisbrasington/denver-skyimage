@@ -5,9 +5,11 @@
 <title>Browse — Denver Sky</title>
 <style>
   body { margin: 0; background: #0b0d12; color: #e6e9ef; font-family: system-ui, sans-serif; }
-  header { padding: 0.6rem 1rem; display: flex; gap: 1rem; align-items: center; border-bottom: 1px solid #222; }
+  header { padding: 0.6rem 1rem; display: flex; gap: 1rem; align-items: center; border-bottom: 1px solid #222; flex-wrap: wrap; }
   header a { color: #8ab4ff; text-decoration: none; }
   header a:hover { text-decoration: underline; }
+  header select { background: #1f2630; color: #e6e9ef; border: 1px solid #333; padding: 0.4rem 0.6rem; border-radius: 4px; font-size: 0.85rem; }
+  header label { font-size: 0.85rem; color: #aab; display: flex; align-items: center; gap: 0.4rem; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.5rem; padding: 1rem; }
   .tile { background: #111; border: 1px solid #1c1f26; border-radius: 4px; overflow: hidden; display: flex; flex-direction: column; }
   .tile .thumb { display: block; }
@@ -26,6 +28,7 @@
   <strong>Denver Sky</strong>
   <a href="/">Live</a>
   <a href="/browse">Browse</a>
+  <label>Jump to <select id="jump"><option value="">Newest first</option></select></label>
   <span id="counter" style="margin-left:auto;color:#888;"></span>
 </header>
 <div class="grid" id="grid"></div>
@@ -49,17 +52,72 @@ function imgUrl(name, extra) {
 const grid = document.getElementById('grid');
 const status = document.getElementById('status');
 const counter = document.getElementById('counter');
+const jumpSel = document.getElementById('jump');
 let page = 1;
 const perPage = 60;
 let total = 0;
 let loading = false;
 let done = false;
+let startTs = '';
+
+function tsParam() {
+  return startTs ? `&start=${encodeURIComponent(startTs)}` : '';
+}
+
+function toFilenameTs(iso) {
+  return iso.replace('T', '_').replace(/:/g, '-').slice(0, 19);
+}
+
+async function buildJumpOptions() {
+  const [daysR, sunR] = await Promise.all([
+    fetch(withCam('/api/days')),
+    fetch(withCam('/api/anchors')),
+  ]);
+  const days = await daysR.json();
+  const sun = await sunR.json();
+  const sunByDay = {};
+  for (const s of sun) sunByDay[s.day] = s;
+
+  jumpSel.innerHTML = '';
+  jumpSel.appendChild(new Option('Newest first', ''));
+
+  if (days.length) {
+    const latest = days[0].day;
+    const latestDate = new Date(`${latest}T00:00:00`);
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    jumpSel.appendChild(new Option('Last hour', toFilenameTs(oneHourAgo.toISOString())));
+
+    days.forEach((d, idx) => {
+      const md = d.day.slice(5);
+      let prefix;
+      if (idx === 0) prefix = `Today (${md})`;
+      else if (idx === 1) prefix = `Yesterday (${md})`;
+      else prefix = `${idx} days ago (${md})`;
+      jumpSel.appendChild(new Option(`${prefix} 00:00`, `${d.day}_00-00-00`));
+      const s = sunByDay[d.day];
+      if (s?.sunrise) jumpSel.appendChild(new Option(`${prefix} sunrise ${s.sunrise}`, `${d.day}_${s.sunrise.replace(':', '-')}-00`));
+      if (s?.sunset) jumpSel.appendChild(new Option(`${prefix} sunset ${s.sunset}`, `${d.day}_${s.sunset.replace(':', '-')}-00`));
+    });
+  }
+}
+
+jumpSel.addEventListener('change', () => {
+  startTs = jumpSel.value;
+  page = 1;
+  total = 0;
+  loading = false;
+  done = false;
+  grid.innerHTML = '';
+  status.textContent = 'loading…';
+  window.scrollTo(0, 0);
+  loadPage();
+});
 
 async function loadPage() {
   if (loading || done) return;
   loading = true;
   status.textContent = 'loading…';
-  const r = await fetch(withCam(`/api/list?page=${page}&per_page=${perPage}`));
+  const r = await fetch(withCam(`/api/list?page=${page}&per_page=${perPage}${tsParam()}`));
   const data = await r.json();
   total = data.total;
   counter.textContent = `${total} frames`;
@@ -140,7 +198,10 @@ window.addEventListener('scroll', () => {
   }
 });
 
-loadPage();
+(async () => {
+  await buildJumpOptions();
+  loadPage();
+})();
 </script>
 </body>
 </html>

@@ -147,14 +147,25 @@ def api_days(camera: str | None = None, cam: str | None = None):
 
 
 @app.get("/api/list")
-def api_list(page: int = 1, per_page: int = 60, camera: str | None = None, cam: str | None = None):
+def api_list(
+    page: int = 1,
+    per_page: int = 60,
+    camera: str | None = None,
+    cam: str | None = None,
+    start: str | None = None,
+):
     sub = resolve_camera(camera, cam)
     frames = list_frames(sub)
-    frames.reverse()
+    if start:
+        s = parse_ts(start)
+        if s:
+            frames = [f for f in frames if f[0] >= s]
+    else:
+        frames.reverse()
     total = len(frames)
-    start = (page - 1) * per_page
-    end = start + per_page
-    chunk = frames[start:end]
+    a = (page - 1) * per_page
+    b = a + per_page
+    chunk = frames[a:b]
     return {
         "total": total,
         "page": page,
