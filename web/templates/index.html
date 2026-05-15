@@ -442,6 +442,13 @@ function applyPreset(lo, hi) {
   lastHourLock = false;
   rangeLo = lo;
   rangeHi = hi;
+  for (const id of [...shownEvents]) {
+    const t = eventTimers.get(id);
+    if (t) { clearTimeout(t); eventTimers.delete(id); }
+    shownEvents.delete(id);
+    const el = document.querySelector(`.event-dialog[data-event-id="${id}"]`);
+    fadeOutDialog(el);
+  }
   applyRangeUI();
   resumeFromStart();
   if (wasLocked) buildPresets();
@@ -555,6 +562,7 @@ function buildPresets() {
   const days = Object.keys(byDay).sort();
   const todayKey = days[days.length - 1];
 
+  const chrono = [];
   for (let di = 0; di < days.length; di++) {
     const day = days[di];
     const dayIdx = byDay[day];
@@ -566,43 +574,40 @@ function buildPresets() {
     if (sr !== null) {
       const lo = findIdxAtMin(dayIdx, sr - SUNRISE_HEAD);
       const hi = findIdxAtMin(dayIdx, sr + SUNRISE_TAIL);
-      if (lo >= 0 && hi >= 0 && lo < hi) addPresetButton(`${md} sunrise`, 'preset-sunrise', lo, hi);
+      if (lo >= 0 && hi >= 0 && lo < hi) chrono.push({ label: `${md} sunrise`, cls: 'preset-sunrise', lo, hi });
     }
-
     if (sr !== null || ss !== null) {
       const tryLo = sr !== null ? findIdxAtMin(dayIdx, sr + SUNRISE_TAIL, 240) : -1;
       const tryHi = ss !== null ? findIdxAtMin(dayIdx, ss - DAY_PAD, 240) : -1;
       const lo = tryLo >= 0 ? tryLo : dayIdx[0];
       const hi = tryHi >= 0 ? tryHi : dayIdx[dayIdx.length - 1];
-      if (lo < hi) addPresetButton(`${md} day`, 'preset-day', lo, hi);
+      if (lo < hi) chrono.push({ label: `${md} day`, cls: 'preset-day', lo, hi });
     }
-
     if (ss !== null) {
       const lo = findIdxAtMin(dayIdx, ss - SUNSET_HEAD);
       const hi = findIdxAtMin(dayIdx, ss + SUNSET_TAIL);
-      if (lo >= 0 && hi >= 0 && lo < hi) addPresetButton(`${md} sunset`, 'preset-sunset', lo, hi);
+      if (lo >= 0 && hi >= 0 && lo < hi) chrono.push({ label: `${md} sunset`, cls: 'preset-sunset', lo, hi });
     }
-
     if (di < days.length - 1) {
       const nextDay = days[di + 1];
       const sunNext = sunTimes[nextDay] || {};
-      const ssNow = ss;
       const srNext = sunNext.sunrise ? hhmmToMin(sunNext.sunrise) : null;
-      if (ssNow !== null && srNext !== null) {
-        const lo = findIdxAtMin(dayIdx, ssNow + SUNSET_TAIL);
+      if (ss !== null && srNext !== null) {
+        const lo = findIdxAtMin(dayIdx, ss + SUNSET_TAIL);
         const hi = findIdxAtMin(byDay[nextDay], srNext - SUNRISE_HEAD);
-        if (lo >= 0 && hi >= 0 && lo < hi) addPresetButton(`Night ${md} → ${fmtMD(nextDay)}`, 'preset-night', lo, hi);
+        if (lo >= 0 && hi >= 0 && lo < hi) chrono.push({ label: `Night ${md} → ${fmtMD(nextDay)}`, cls: 'preset-night', lo, hi });
       }
     }
   }
-
   for (const ev of events) {
     const r = eventToRange(ev);
     if (!r) continue;
     const md = fmtMD(ev.start_ts.slice(0, 10));
     const msg = ev.message.length > 28 ? ev.message.slice(0, 25) + '…' : ev.message;
-    addPresetButton(`★ ${md} ${msg}`, 'preset-event', r.lo, r.hi);
+    chrono.push({ label: `★ ${md} ${msg}`, cls: 'preset-event', lo: r.lo, hi: r.hi });
   }
+  chrono.sort((a, b) => a.lo - b.lo);
+  for (const b of chrono) addPresetButton(b.label, b.cls, b.lo, b.hi);
 
   if (sunTimes[todayKey]?.sunrise) {
     const sr = hhmmToMin(sunTimes[todayKey].sunrise);
