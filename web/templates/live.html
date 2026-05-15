@@ -349,6 +349,22 @@ function fmtMD(day) {
   const [, mo, d] = day.split('-');
   return `${parseInt(mo, 10)}/${parseInt(d, 10)}`;
 }
+function fmt12hm(hhmm) {
+  const [h, m] = hhmm.split(':').map(Number);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const hh = h % 12 || 12;
+  return `${hh}:${String(m).padStart(2, '0')} ${ampm}`;
+}
+function fmtTsHuman(iso) {
+  if (!iso) return '';
+  const [d, t = '00:00:00'] = iso.split('T');
+  const [, mo, dd] = d.split('-');
+  const [hh, mm, ss = '00'] = t.split(':');
+  let h = parseInt(hh, 10);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${parseInt(mo, 10)}/${parseInt(dd, 10)} ${h}:${mm}:${ss} ${ampm}`;
+}
 function findIdxAtMin(dayIndices, targetMin, tol = FRAME_TOL) {
   let best = -1, bestDiff = Infinity;
   for (const i of dayIndices) {
@@ -473,7 +489,7 @@ function buildPresets() {
     if (new Date(frames[i].ts).getTime() <= targetMs) { hourIdx = i; break; }
   }
   if (hourIdx < frames.length - 1) {
-    const startLabel = frames[hourIdx].ts.slice(11, 16);
+    const startLabel = fmt12hm(frames[hourIdx].ts.slice(11, 16));
     addPresetButton(`Last hour\n${startLabel} → NOW`, 'preset-today', hourIdx, frames.length - 1);
   }
 
@@ -635,8 +651,8 @@ function computeAnchors() {
     const monthDay = day.slice(5);
     const sun = sunTimes[day] || {};
     const targets = [{ time: '00:00', suffix: '' }];
-    if (sun.sunrise) targets.push({ time: sun.sunrise, suffix: ` sunrise ${sun.sunrise}` });
-    if (sun.sunset) targets.push({ time: sun.sunset, suffix: ` sunset ${sun.sunset}` });
+    if (sun.sunrise) targets.push({ time: sun.sunrise, suffix: ` sunrise ${fmt12hm(sun.sunrise)}` });
+    if (sun.sunset) targets.push({ time: sun.sunset, suffix: ` sunset ${fmt12hm(sun.sunset)}` });
     for (const t of targets) {
       const [th, tm] = t.time.split(':').map(Number);
       const targetMin = th * 60 + tm;
@@ -705,11 +721,11 @@ function applyRangeUI() {
   const hiPct = (rangeHi / total) * 100;
   selBar.style.left = `${loPct}%`;
   selBar.style.width = `${hiPct - loPct}%`;
-  rangeStartLabel.textContent = frames[rangeLo].ts.replace('T', ' ');
+  rangeStartLabel.textContent = fmtTsHuman(frames[rangeLo].ts);
   const atCurrent = rangeHi === frames.length - 1;
   rangeEndLabel.textContent = atCurrent
-    ? `NOW (${frames[rangeHi].ts.replace('T', ' ')})`
-    : frames[rangeHi].ts.replace('T', ' ');
+    ? `NOW (${fmtTsHuman(frames[rangeHi].ts)})`
+    : fmtTsHuman(frames[rangeHi].ts);
   rangeEndLabel.style.color = atCurrent ? '#7fd17a' : '#aab';
   seek.min = rangeLo;
   seek.max = rangeHi;
@@ -829,7 +845,7 @@ function show(i) {
   idx = Math.max(rangeLo, Math.min(rangeHi, i));
   const f = frames[idx];
   img.src = imgUrl(f.name);
-  tsLabel.textContent = f.ts.replace('T', ' ');
+  tsLabel.textContent = fmtTsHuman(f.ts);
   seek.value = idx;
   seek.style.setProperty('--thumb-color', frameTimeColor(idx));
   updateTimeLabel(f.ts);
