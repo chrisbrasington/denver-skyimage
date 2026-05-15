@@ -56,8 +56,8 @@
   .rangebar input[type=range]::-moz-range-track { background: transparent; }
 
   .seekbar { width: 100%; height: 28px; appearance: none; background: transparent; }
-  .seekbar::-webkit-slider-runnable-track { height: 8px; background: #1f2630; border-radius: 4px; }
-  .seekbar::-moz-range-track { height: 8px; background: #1f2630; border-radius: 4px; }
+  .seekbar::-webkit-slider-runnable-track { height: 8px; background: var(--track-gradient, #1f2630); border-radius: 4px; }
+  .seekbar::-moz-range-track { height: 8px; background: var(--track-gradient, #1f2630); border-radius: 4px; }
   .seekbar::-webkit-slider-thumb { appearance: none; width: 28px; height: 28px; border-radius: 50%; background: var(--thumb-color, #e6e9ef); border: 3px solid #ffd76a; box-shadow: 0 0 0 2px rgba(0,0,0,0.6); margin-top: -10px; }
   .seekbar::-moz-range-thumb { width: 28px; height: 28px; border-radius: 50%; background: var(--thumb-color, #e6e9ef); border: 3px solid #ffd76a; box-shadow: 0 0 0 2px rgba(0,0,0,0.6); }
   .camera-switcher { position: fixed; top: 1rem; right: 1rem; display: flex; flex-direction: column; gap: 0.5rem; z-index: 100; }
@@ -467,22 +467,21 @@ function timeColor(minute) {
   }
   return 'rgb(10,16,36)';
 }
-function buildTimelineGradient() {
-  if (frames.length < 2) return '#1f2630';
+function buildGradientFor(lo, hi) {
+  if (frames.length < 2 || hi <= lo) return '#1f2630';
   const steps = 80;
   const stops = [];
   for (let i = 0; i <= steps; i++) {
-    const idx = Math.min(frames.length - 1, Math.round((i / steps) * (frames.length - 1)));
-    const t = frames[idx].ts.slice(11);
-    const [hh, mm] = t.split(':').map(Number);
+    const idx = Math.min(hi, Math.round(lo + (i / steps) * (hi - lo)));
+    const [hh, mm] = frames[idx].ts.slice(11).split(':').map(Number);
     stops.push(`${timeColor(hh * 60 + mm)} ${(i * 100 / steps).toFixed(1)}%`);
   }
   return `linear-gradient(to right, ${stops.join(',')})`;
 }
 function applyTimelineGradient() {
   const track = document.querySelector('.rangebar .track');
-  if (!track) return;
-  track.style.background = buildTimelineGradient();
+  if (track) track.style.background = buildGradientFor(0, frames.length - 1);
+  if (seek) seek.style.setProperty('--track-gradient', buildGradientFor(rangeLo, rangeHi));
 }
 function frameTimeColor(i) {
   if (!frames.length || i < 0 || i >= frames.length) return '#e6e9ef';
@@ -592,6 +591,7 @@ function applyRangeUI() {
   if (idx < rangeLo) idx = rangeLo;
   if (idx > rangeHi) idx = rangeHi;
   updateThumbColors();
+  if (frames.length && seek) seek.style.setProperty('--track-gradient', buildGradientFor(rangeLo, rangeHi));
 }
 
 rangeMin.addEventListener('input', () => {

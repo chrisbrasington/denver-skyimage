@@ -31,7 +31,10 @@
   .row .slot { flex: 1; min-width: 0; }
   .slabel { font-size: 0.75rem; color: #8ab4ff; min-width: 6rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
   input[type=range] { width: 100%; min-width: 0; }
-  #seek::-webkit-slider-thumb { appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--thumb-color, #e6e9ef); border: 2px solid #ffd76a; box-shadow: 0 0 0 1px rgba(0,0,0,0.5); cursor: pointer; }
+  #seek { appearance: none; background: transparent; height: 18px; }
+  #seek::-webkit-slider-runnable-track { height: 6px; background: var(--track-gradient, #1f2630); border-radius: 3px; }
+  #seek::-moz-range-track { height: 6px; background: var(--track-gradient, #1f2630); border-radius: 3px; }
+  #seek::-webkit-slider-thumb { appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--thumb-color, #e6e9ef); border: 2px solid #ffd76a; box-shadow: 0 0 0 1px rgba(0,0,0,0.5); cursor: pointer; margin-top: -4px; }
   #seek::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--thumb-color, #e6e9ef); border: 2px solid #ffd76a; box-shadow: 0 0 0 1px rgba(0,0,0,0.5); cursor: pointer; }
   button { background: #1f2630; color: #e6e9ef; border: 1px solid #333; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; }
   button:hover { background: #2a3340; }
@@ -407,22 +410,21 @@ function timeColor(minute) {
   }
   return 'rgb(10,16,36)';
 }
-function buildTimelineGradient() {
-  if (frames.length < 2) return '#1f2630';
+function buildGradientFor(lo, hi) {
+  if (frames.length < 2 || hi <= lo) return '#1f2630';
   const steps = 80;
   const stops = [];
   for (let i = 0; i <= steps; i++) {
-    const idx = Math.min(frames.length - 1, Math.round((i / steps) * (frames.length - 1)));
-    const t = frames[idx].ts.slice(11);
-    const [hh, mm] = t.split(':').map(Number);
+    const idx = Math.min(hi, Math.round(lo + (i / steps) * (hi - lo)));
+    const [hh, mm] = frames[idx].ts.slice(11).split(':').map(Number);
     stops.push(`${timeColor(hh * 60 + mm)} ${(i * 100 / steps).toFixed(1)}%`);
   }
   return `linear-gradient(to right, ${stops.join(',')})`;
 }
 function applyTimelineGradient() {
   const track = document.querySelector('.rangebar .track');
-  if (!track) return;
-  track.style.background = buildTimelineGradient();
+  if (track) track.style.background = buildGradientFor(0, frames.length - 1);
+  if (seek) seek.style.setProperty('--track-gradient', buildGradientFor(rangeLo, rangeHi));
 }
 function frameTimeColor(i) {
   if (!frames.length || i < 0 || i >= frames.length) return '#e6e9ef';
@@ -536,6 +538,7 @@ function applyRangeUI() {
   if (idx > rangeHi) idx = rangeHi;
   updateSaveLink();
   updateThumbColors();
+  if (frames.length && seek) seek.style.setProperty('--track-gradient', buildGradientFor(rangeLo, rangeHi));
 }
 
 rangeMin.addEventListener('input', () => {
