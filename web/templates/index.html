@@ -685,8 +685,7 @@ function computeAnchors() {
   for (const ev of events) {
     const r = eventToRange(ev);
     if (!r) continue;
-    const msg = ev.message.length > 18 ? ev.message.slice(0, 15) + '…' : ev.message;
-    anchors.push({ idx: r.lo, label: `★ ${msg}`, kind: 'event' });
+    anchors.push({ idx: r.lo, label: '★', kind: 'event', title: ev.message });
   }
   anchors.sort((a, b) => a.idx - b.idx);
   renderAnchors();
@@ -718,7 +717,7 @@ function renderAnchors() {
     lbl.style.left = `${pct}%`;
     lbl.textContent = a.label;
     if (a.kind === 'event') lbl.classList.add('event-anchor');
-    lbl.title = frames[a.idx].ts.replace('T', ' ');
+    lbl.title = a.title ? `${a.title} — ${frames[a.idx].ts.replace('T', ' ')}` : frames[a.idx].ts.replace('T', ' ');
     anchorLabels.appendChild(lbl);
   }
 }
