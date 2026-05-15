@@ -67,19 +67,29 @@ def free_bytes():
 def encode_day(frames, output_path):
     if not frames:
         return False
-    first = cv2.imread(str(frames[0][1]))
+    first = None
+    for _, p in frames:
+        first = cv2.imread(str(p))
+        if first is not None:
+            break
     if first is None:
+        print(f"ERROR no readable frames for {output_path.name}", flush=True)
         return False
     h, w, _ = first.shape
     output_path.parent.mkdir(parents=True, exist_ok=True)
     tmp = output_path.with_suffix(".mp4.tmp")
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     writer = cv2.VideoWriter(str(tmp), fourcc, FPS, (w, h))
+    if not writer.isOpened():
+        print(f"ERROR VideoWriter failed to open for {output_path.name} (codec missing?)", flush=True)
+        return False
     written = 0
+    skipped = 0
     try:
         for ts, p in frames:
             img = cv2.imread(str(p))
             if img is None:
+                skipped += 1
                 continue
             if img.shape[0] != h or img.shape[1] != w:
                 img = cv2.resize(img, (w, h))
@@ -87,7 +97,9 @@ def encode_day(frames, output_path):
             written += 1
     finally:
         writer.release()
-    if written == 0:
+    if skipped:
+        print(f"[{output_path.name}] skipped {skipped} unreadable frames", flush=True)
+    if written == 0 or not tmp.exists():
         if tmp.exists():
             tmp.unlink()
         return False
