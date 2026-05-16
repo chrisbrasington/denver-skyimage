@@ -73,9 +73,41 @@
   .event-dialog.fading { opacity: 0; transform: translate(-50%, -100%) translateY(-4px); transition: opacity 1.5s ease-in, transform 1.5s ease-in; }
   .event-dialog::after { content: ''; position: absolute; left: 50%; bottom: -10px; transform: translateX(-50%); border: 8px solid transparent; border-top-color: #ffd76a; }
   .thumb-tooltip.show { display: block; }
+
+  @media (max-width: 768px) {
+    body.touch-mode .time-label,
+    body.touch-mode .fs-hint { display: none; }
+    body.touch-mode .stage:fullscreen .time-label { display: block; }
+    body.touch-mode .stage:fullscreen .time-label .descriptor { font-size: 1.6rem; }
+    body.touch-mode .stage:fullscreen .time-label .ts { font-size: 1rem; }
+    body.touch-mode .stage:fullscreen .time-label { min-width: 0; padding: 0.5rem 0.9rem; }
+
+    body.touch-mode .sidebar { min-width: 9rem; max-width: 11rem; padding: 0.5rem 0 0.5rem 0.5rem; }
+    body.touch-mode .sidebar button { font-size: 0.9rem; padding: 0.6rem 0.7rem; }
+
+    body.touch-mode .bottombar { padding: 0.75rem 0.75rem 1rem; gap: 0.75rem; }
+    body.touch-mode .slabel { font-size: 1rem; min-width: 5rem; }
+    body.touch-mode .row { gap: 0.6rem; }
+    body.touch-mode .ts { font-size: 1rem; min-width: 0; }
+
+    body.touch-mode .rangebar .dual { height: 56px; }
+    body.touch-mode .rangebar .track { top: 24px; height: 12px; }
+    body.touch-mode .rangebar .daymarks { top: 20px; height: 24px; }
+    body.touch-mode .rangebar input[type=range] { top: 10px; height: 40px; }
+    body.touch-mode .rangebar input[type=range]::-webkit-slider-thumb { width: 44px; height: 44px; }
+    body.touch-mode .rangebar input[type=range]::-moz-range-thumb { width: 44px; height: 44px; }
+    body.touch-mode .rangebar .anchors { font-size: 0.75rem; }
+    body.touch-mode .rangebar .ticks { font-size: 0.85rem; }
+
+    body.touch-mode .seekbar { height: 44px; }
+    body.touch-mode .seekbar::-webkit-slider-runnable-track { height: 12px; }
+    body.touch-mode .seekbar::-moz-range-track { height: 12px; }
+    body.touch-mode .seekbar::-webkit-slider-thumb { width: 44px; height: 44px; margin-top: -16px; }
+    body.touch-mode .seekbar::-moz-range-thumb { width: 44px; height: 44px; }
+  }
 </style>
 </head>
-<body>
+<body class="{% if touch_mode %}touch-mode{% endif %}">
 <div class="camera-switcher" id="cameraSwitcher"></div>
 <div class="thumb-tooltip" id="thumbTooltip"></div>
 <div class="main">
@@ -159,6 +191,8 @@ const seek = document.getElementById('seek');
 const tsLabel = document.getElementById('tsLabel');
 const playBtn = document.getElementById('playBtn');
 const TOUCH_MODE = {{ 'true' if touch_mode else 'false' }};
+const IS_MOBILE = window.matchMedia('(max-width: 768px)').matches;
+const MOBILE_TOUCH = TOUCH_MODE && IS_MOBILE;
 function setPlayBtn(text) { if (playBtn) playBtn.textContent = text; }
 const rangeMin = document.getElementById('rangeMin');
 const rangeMax = document.getElementById('rangeMax');
@@ -266,11 +300,13 @@ function toggleFullscreen() {
   if (!document.fullscreenElement) {
     (stage.requestFullscreen || stage.webkitRequestFullscreen)?.call(stage);
     clearTimeout(fsTimer);
-    fsTimer = setTimeout(() => {
-      if (document.fullscreenElement) {
-        (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
-      }
-    }, FS_DURATION_MS);
+    if (!MOBILE_TOUCH) {
+      fsTimer = setTimeout(() => {
+        if (document.fullscreenElement) {
+          (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
+        }
+      }, FS_DURATION_MS);
+    }
   } else {
     clearTimeout(fsTimer);
     (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
@@ -288,13 +324,16 @@ document.addEventListener('keydown', (e) => {
 });
 
 function resetIdle() {
+  if (MOBILE_TOUCH) return;
   clearTimeout(idleTimer);
   idleTimer = setTimeout(() => { resetPending = true; }, IDLE_MS);
 }
-['touchstart', 'click', 'mousemove', 'keydown', 'input'].forEach(ev => {
-  window.addEventListener(ev, resetIdle, { passive: true });
-});
-resetIdle();
+if (!MOBILE_TOUCH) {
+  ['touchstart', 'click', 'mousemove', 'keydown', 'input'].forEach(ev => {
+    window.addEventListener(ev, resetIdle, { passive: true });
+  });
+  resetIdle();
+}
 
 async function loadFrames() {
   const r = await fetch(withCam('/api/frames'));
@@ -981,7 +1020,7 @@ async function buildCameraSwitcher() {
   await loadSunTimes();
   await loadFrames();
   await loadEvents();
-  if (TOUCH_MODE && frames.length) applyIdleReset();
+  if (TOUCH_MODE && !MOBILE_TOUCH && frames.length) applyIdleReset();
   if (frames.length) show(idx);
   restartTimer();
   setInterval(async () => { await loadSunTimes(); await loadFrames(); await loadEvents(); }, 30000);
