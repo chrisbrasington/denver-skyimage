@@ -78,7 +78,7 @@
 </head>
 <body>
 <header>
-  <strong>Denver Sky</strong>
+  <a href="/" style="color:#e6e9ef;font-weight:600;text-decoration:none;"><strong>Denver Sky</strong></a>
   <a href="/">Live</a>
   <a href="/touch">Touch</a>
   <a href="/browse">Browse</a>
@@ -92,6 +92,7 @@
     <div class="tile"><div class="n" id="t-requests">—</div><div class="l">Requests</div></div>
     <div class="tile"><div class="n" id="t-events">—</div><div class="l">Events</div></div>
     <div class="tile"><div class="n" id="t-cpu">—</div><div class="l">System CPU</div></div>
+    <div class="tile"><div class="n" id="t-mem">—</div><div class="l">System Memory</div></div>
   </section>
 
   <section class="panel">
@@ -176,11 +177,14 @@ function setBar(fill, pct) {
   fill.style.background = pickColor(p);
 }
 
+let _latest = null;
 function render(d) {
+  _latest = d;
   document.getElementById('t-uptime').textContent = fmtDur(d.web.uptime_seconds);
   document.getElementById('t-requests').textContent = d.web.requests.toLocaleString();
   document.getElementById('t-events').textContent = d.events_count;
   document.getElementById('t-cpu').textContent = d.system.cpu_pct.toFixed(1) + '%';
+  document.getElementById('t-mem').textContent = d.system.mem_pct.toFixed(1) + '%';
 
   document.getElementById('lim-size').textContent = d.limits.max_size_gb;
   document.getElementById('lim-age').textContent = d.limits.max_age_days;
@@ -364,9 +368,19 @@ document.getElementById('vid-delete').addEventListener('click', () => {
 });
 
 function askDeleteDay(camera, day, count) {
+  const cam = (_latest?.cameras || []).find(c => c.name === camera) || {};
+  const lim = _latest?.limits || {};
+  const sizePct = cam.size_pct_of_limit ?? 0;
+  const agePct = cam.age_pct_of_limit ?? 0;
+  const auto = `
+    <p style="font-size:1rem;line-height:1.4;color:#ffd76a;margin-top:0.5rem;">
+      Auto-prune already keeps storage under <b>${lim.max_size_gb} GB</b> and images under <b>${lim.max_age_days} days</b>.<br>
+      Current ${camera}: <b>${sizePct}%</b> of size limit, <b>${agePct}%</b> of age limit.<br>
+      You do not have to manually delete unless you want it gone now.
+    </p>`;
   askConfirm(
     `Delete all images for ${camera} on ${day}?`,
-    `<p>${count.toLocaleString()} image${count === 1 ? '' : 's'} will be removed.</p>`,
+    `<p>${count.toLocaleString()} image${count === 1 ? '' : 's'} will be removed.</p>${auto}`,
     async () => {
       const r = await fetch('/api/images/delete-day', {
         method: 'POST',
