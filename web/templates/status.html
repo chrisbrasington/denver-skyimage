@@ -50,13 +50,29 @@
   .heatmap .cell.l3 { background: #7fd17a; }
   .heatmap-legend { display: flex; align-items: center; gap: 0.4rem; font-size: 0.72rem; color: #788; margin-top: 0.3rem; }
   .heatmap-legend .cell { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
-  .video-list { display: flex; flex-direction: column; gap: 0.3rem; margin-top: 0.5rem; max-height: 320px; overflow-y: auto; }
-  .video-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0.5rem; background: #11141c; border: 1px solid #222; border-radius: 4px; font-size: 0.82rem; }
-  .video-row input[type=checkbox] { accent-color: #ffd76a; }
-  .video-row .vname { flex: 1; font-variant-numeric: tabular-nums; }
-  .video-row .vsize { color: #aab; font-variant-numeric: tabular-nums; min-width: 5rem; text-align: right; }
-  .video-row a { color: #8ab4ff; text-decoration: none; font-size: 0.75rem; }
-  .video-row a:hover { text-decoration: underline; }
+  #video-tables { display: flex; flex-direction: column; gap: 0.9rem; margin-top: 0.5rem; }
+  .vid-cam-block h4 { margin: 0 0 0.4rem; font-size: 0.92rem; color: #8ab4ff; }
+  .vid-table { width: 100%; border-collapse: collapse; }
+  .vid-table th, .vid-table td { padding: 0.35rem 0.5rem; border-bottom: 1px solid #1c2030; font-size: 0.82rem; text-align: left; font-variant-numeric: tabular-nums; }
+  .vid-table th { color: #788; text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.04em; }
+  .vid-table td.actions-cell { display: flex; gap: 0.35rem; flex-wrap: wrap; align-items: center; }
+  .vid-table input[type=checkbox] { accent-color: #ffd76a; }
+  .vid-table a, .vid-table button { font-size: 0.74rem; padding: 0.18rem 0.5rem; border-radius: 3px; cursor: pointer; text-decoration: none; border: 1px solid #333; background: #1f2630; color: #e6e9ef; }
+  .vid-table a:hover, .vid-table button:hover { background: #2a3340; }
+  .vid-table button.create { color: #ffd76a; border-color: #5a4a20; }
+  .vid-table button.create:hover { background: #2a2515; }
+  .vid-table button.dl-create { color: #8ab4ff; border-color: #2a3b5a; }
+  .vid-table button.danger-sm { color: #ff8a7a; border-color: #5a2a2a; }
+  .vid-table button.danger-sm:hover { background: #2a1515; }
+  .vid-table button:disabled, .vid-table a[aria-disabled=true] { opacity: 0.4; pointer-events: none; }
+  .vid-table .no-vid { color: #788; font-style: italic; }
+  .busy-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: none; align-items: center; justify-content: center; z-index: 300; }
+  .busy-overlay.show { display: flex; }
+  .busy-overlay .box { background: #161a26; border: 1px solid #333; border-radius: 8px; padding: 1.25rem 1.75rem; text-align: center; color: #ffd76a; font-size: 0.95rem; }
+  .busy-overlay .spinner { width: 28px; height: 28px; margin: 0.5rem auto 0; border-radius: 50%; border: 3px solid rgba(255,255,255,0.18); border-top-color: #ffd76a; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .pill-stop { background: #5a2a2a; color: #f0b8b8; padding: 0.1rem 0.5rem; border-radius: 10px; font-size: 0.72rem; }
+  .pill-go { background: #2d4a2d; color: #b5e0b5; padding: 0.1rem 0.5rem; border-radius: 10px; font-size: 0.72rem; }
   .actions-row { display: flex; gap: 0.5rem; align-items: center; margin: 0.5rem 0; flex-wrap: wrap; }
   .actions-row button { background: #1f2630; color: #e6e9ef; border: 1px solid #333; padding: 0.35rem 0.7rem; border-radius: 4px; cursor: pointer; font-size: 0.78rem; }
   .actions-row button.danger { background: #3a1a1a; border-color: #5a2a2a; color: #ff8a7a; }
@@ -113,15 +129,16 @@
 
   <section class="panel" id="videos-section" style="display:none">
     <h2>Videos</h2>
+    <div id="videogen-note" style="font-size:0.82rem;line-height:1.4;color:#aab;margin-bottom:0.5rem;"></div>
     <div class="bar-row"><span class="lbl">Storage</span><span class="val" id="videos-total">—</span></div>
     <div id="heatmaps"></div>
     <div class="actions-row">
-      <button id="vid-select-all" type="button">Select all</button>
+      <button id="vid-select-all" type="button">Select all videos</button>
       <button id="vid-clear" type="button">Clear</button>
       <button id="vid-delete" type="button" class="danger" disabled>Delete selected</button>
       <span id="vid-count" style="font-size:0.78rem; color:#aab;"></span>
     </div>
-    <div class="video-list" id="video-list"></div>
+    <div id="video-tables"></div>
   </section>
 
   <section class="panel">
@@ -136,6 +153,14 @@
     <h2>System</h2>
     <div class="kv" id="sys-kv"></div>
   </section>
+</div>
+
+<div class="busy-overlay" id="busy-overlay">
+  <div class="box">
+    <div id="busy-msg">Working…</div>
+    <div class="spinner"></div>
+    <div style="font-size:0.75rem;color:#aab;margin-top:0.4rem">May take a few minutes for a full day.</div>
+  </div>
 </div>
 
 <div class="modal-overlay" id="confirm-modal">
@@ -296,40 +321,77 @@ function renderVideos(v) {
   const sec = document.getElementById('videos-section');
   if (!v) { sec.style.display = 'none'; return; }
   sec.style.display = '';
-  document.getElementById('videos-total').textContent = fmtBytes(v.total_size_bytes) + ' across ' + v.count + ' file' + (v.count === 1 ? '' : 's');
+
+  const note = document.getElementById('videogen-note');
+  const pill = v.videogen_running
+    ? '<span class="pill-go">running</span>'
+    : '<span class="pill-stop">stopped</span>';
+  note.innerHTML = `
+    The <b>videogen</b> container ${pill} auto-encodes one MP4 per camera per day at 01:00 MTN.
+    Files are saved as <code style="background:#1f2630;padding:0 0.3rem;border-radius:2px;">${v.naming}</code> in <code style="background:#1f2630;padding:0 0.3rem;border-radius:2px;">/data/videos/{camera}/</code>.
+    ${v.videogen_running ? '' : '<span style="color:#ff8a7a">Not running on this host — use the per-day buttons below to encode on demand.</span>'}
+  `;
+
+  document.getElementById('videos-total').textContent =
+    fmtBytes(v.total_size_bytes) + ' across ' + v.count + ' file' + (v.count === 1 ? '' : 's');
 
   const heatmaps = document.getElementById('heatmaps');
   heatmaps.innerHTML = '';
   v.by_camera.forEach(cam => {
+    const vidDays = cam.rows.filter(r => r.video_name).length;
     const title = document.createElement('div');
     title.style.cssText = 'font-size:0.82rem;color:#8ab4ff;margin-top:0.5rem;';
-    title.textContent = cam.camera + ' — ' + cam.items.length + ' day' + (cam.items.length === 1 ? '' : 's');
+    title.textContent = cam.camera + ' — ' + vidDays + ' day' + (vidDays === 1 ? '' : 's') + ' with video';
     heatmaps.appendChild(title);
-    const days = new Set(cam.items.map(i => i.day));
+    const days = new Set(cam.rows.filter(r => r.video_name).map(r => r.day));
     heatmaps.appendChild(buildHeatmap(days));
   });
 
-  const list = document.getElementById('video-list');
-  list.innerHTML = '';
-  const flat = [];
-  v.by_camera.forEach(cam => cam.items.forEach(it => flat.push({ camera: cam.camera, ...it })));
-  flat.forEach(it => {
-    const row = document.createElement('div');
-    row.className = 'video-row';
-    row.innerHTML = `
-      <input type="checkbox" data-cam="${it.camera}" data-name="${it.name}">
-      <span class="vname">${it.camera} / ${it.day} <span style="color:#788">(${it.name})</span></span>
-      <a href="/api/videos/file/${it.camera}/${it.name}" target="_blank">view</a>
-      <a href="/api/videos/file/${it.camera}/${it.name}?download=1">download</a>
-      <span class="vsize">${fmtBytes(it.size_bytes)}</span>`;
-    list.appendChild(row);
+  const tables = document.getElementById('video-tables');
+  tables.innerHTML = '';
+  v.by_camera.forEach(cam => {
+    if (!cam.rows.length) return;
+    const block = document.createElement('div');
+    block.className = 'vid-cam-block';
+    const rowsHtml = cam.rows.map(r => {
+      const has = !!r.video_name;
+      const cb = has
+        ? `<input type="checkbox" data-cam="${cam.camera}" data-name="${r.video_name}">`
+        : '';
+      const actions = has
+        ? `<a href="/api/videos/file/${cam.camera}/${r.video_name}" target="_blank">view</a>
+           <a href="/api/videos/file/${cam.camera}/${r.video_name}?download=1">download</a>`
+        : (r.image_count > 0
+            ? `<button class="create" data-cam="${cam.camera}" data-day="${r.day}" data-count="${r.image_count}" type="button">Create video</button>
+               <button class="dl-create" data-cam="${cam.camera}" data-day="${r.day}" data-count="${r.image_count}" data-dl="1" type="button">Create &amp; download</button>`
+            : '<span class="no-vid">no images, no video</span>');
+      return `
+        <tr>
+          <td>${cb}</td>
+          <td>${r.day}</td>
+          <td>${r.image_count.toLocaleString()}</td>
+          <td>${has ? fmtBytes(r.video_size_bytes) : '<span class="no-vid">—</span>'}</td>
+          <td class="actions-cell">${actions}</td>
+        </tr>`;
+    }).join('');
+    block.innerHTML = `
+      <h4>${cam.camera}</h4>
+      <table class="vid-table">
+        <thead><tr><th></th><th>Day</th><th>Images</th><th>Video size</th><th>Actions</th></tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>`;
+    tables.appendChild(block);
   });
-  list.querySelectorAll('input[type=checkbox]').forEach(cb => cb.addEventListener('change', updateVidBtnState));
+
+  tables.querySelectorAll('input[type=checkbox]').forEach(cb => cb.addEventListener('change', updateVidBtnState));
+  tables.querySelectorAll('button.create, button.dl-create').forEach(btn => {
+    btn.addEventListener('click', () => askCreate(btn.dataset.cam, btn.dataset.day, parseInt(btn.dataset.count, 10), btn.dataset.dl === '1'));
+  });
   updateVidBtnState();
 }
 
 function selectedVideos() {
-  return Array.from(document.querySelectorAll('#video-list input[type=checkbox]:checked'))
+  return Array.from(document.querySelectorAll('#video-tables input[type=checkbox]:checked'))
     .map(cb => ({ camera: cb.dataset.cam, name: cb.dataset.name }));
 }
 function updateVidBtnState() {
@@ -339,11 +401,11 @@ function updateVidBtnState() {
 }
 
 document.getElementById('vid-select-all').addEventListener('click', () => {
-  document.querySelectorAll('#video-list input[type=checkbox]').forEach(cb => cb.checked = true);
+  document.querySelectorAll('#video-tables input[type=checkbox]').forEach(cb => cb.checked = true);
   updateVidBtnState();
 });
 document.getElementById('vid-clear').addEventListener('click', () => {
-  document.querySelectorAll('#video-list input[type=checkbox]').forEach(cb => cb.checked = false);
+  document.querySelectorAll('#video-tables input[type=checkbox]').forEach(cb => cb.checked = false);
   updateVidBtnState();
 });
 document.getElementById('vid-delete').addEventListener('click', () => {
@@ -366,6 +428,70 @@ document.getElementById('vid-delete').addEventListener('click', () => {
     }
   );
 });
+
+function showBusy(msg) {
+  document.getElementById('busy-msg').textContent = msg;
+  document.getElementById('busy-overlay').classList.add('show');
+}
+function hideBusy() {
+  document.getElementById('busy-overlay').classList.remove('show');
+}
+
+async function askCreate(camera, day, imageCount, download) {
+  const action = download ? 'Encode + download' : 'Encode';
+  askConfirm(
+    `${action} video for ${camera} on ${day}?`,
+    `<p>${imageCount.toLocaleString()} frame${imageCount === 1 ? '' : 's'} will be encoded with ffmpeg (libx264, crf 22, preset slow).</p>
+     <p style="color:#ffd76a">This can take a few minutes for a full day.</p>`,
+    async () => {
+      // Replace "irreversible" line — not applicable here
+      // Modal closed by askConfirm flow, then we run:
+      if (download) {
+        showBusy('Encoding ' + camera + ' ' + day + '… download will start automatically');
+        try {
+          const url = `/api/videos/create-download?camera=${encodeURIComponent(camera)}&day=${encodeURIComponent(day)}`;
+          const r = await fetch(url);
+          if (!r.ok) {
+            const t = await r.text();
+            throw new Error('HTTP ' + r.status + ': ' + t.slice(0, 300));
+          }
+          const blob = await r.blob();
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = `${camera}_${day}.mp4`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(a.href);
+        } catch (e) {
+          alert('Encode failed: ' + e.message);
+        } finally {
+          hideBusy();
+          load();
+        }
+      } else {
+        showBusy('Encoding ' + camera + ' ' + day + '…');
+        try {
+          const r = await fetch('/api/videos/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ camera, day }),
+          });
+          if (!r.ok) {
+            const t = await r.text();
+            throw new Error('HTTP ' + r.status + ': ' + t.slice(0, 300));
+          }
+        } catch (e) {
+          alert('Encode failed: ' + e.message);
+        } finally {
+          hideBusy();
+          load();
+        }
+      }
+    },
+    /*destructive*/ false
+  );
+}
 
 function askDeleteDay(camera, day, count) {
   const cam = (_latest?.cameras || []).find(c => c.name === camera) || {};
@@ -397,9 +523,12 @@ function askDeleteDay(camera, day, count) {
 }
 
 let _confirmHandler = null;
-function askConfirm(title, bodyHtml, onOk) {
+function askConfirm(title, bodyHtml, onOk, destructive = true) {
   document.getElementById('confirm-title').textContent = title;
   document.getElementById('confirm-body').innerHTML = bodyHtml;
+  document.querySelector('#confirm-modal .warn').style.display = destructive ? '' : 'none';
+  const okBtn = document.getElementById('confirm-ok');
+  okBtn.textContent = destructive ? 'Delete' : 'Proceed';
   _confirmHandler = onOk;
   document.getElementById('confirm-modal').classList.add('show');
 }
