@@ -910,16 +910,17 @@ function findAnchorFor(day, kind) {
 
 function applyIdleReset() {
   if (!frames.length) return;
-  presetActive = false;
-  activePresetLabel = null;
-  refreshActivePreset();
   const today = frames[frames.length - 1].ts.slice(0, 10);
   const days = Object.keys(sunTimes).sort();
   const todayIdx = days.indexOf(today);
   const yesterday = todayIdx > 0 ? days[todayIdx - 1] : null;
   let anchor = findAnchorFor(today, 'sunrise');
-  if (anchor < 0 && yesterday) anchor = findAnchorFor(yesterday, 'sunrise');
+  let anchorDay = today;
+  if (anchor < 0 && yesterday) { anchor = findAnchorFor(yesterday, 'sunrise'); anchorDay = yesterday; }
   if (anchor < 0) anchor = 0;
+  presetActive = true;
+  activePresetLabel = `Today (${fmtMD(anchorDay)})\nsunrise → NOW`;
+  refreshActivePreset();
   rangeLo = anchor;
   rangeHi = frames.length - 1;
   applyRangeUI();
@@ -1000,7 +1001,7 @@ async function buildCameraSwitcher() {
   await loadSunTimes();
   await loadFrames();
   await loadEvents();
-  if (TOUCH_MODE && !MOBILE_TOUCH && frames.length) applyIdleReset();
+  if (TOUCH_MODE && frames.length) applyIdleReset();
   if (frames.length) show(idx);
   restartTimer();
   setInterval(async () => { await loadSunTimes(); await loadFrames(); await loadEvents(); }, 30000);
