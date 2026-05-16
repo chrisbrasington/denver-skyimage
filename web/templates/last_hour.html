@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Denver Sky — Last Hour</title>
+<style>
+  * { box-sizing: border-box; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: #0b0d12; color: #e6e9ef; font-family: system-ui, sans-serif; overflow: hidden; }
+  body { display: flex; }
+  .stage { position: relative; flex: 1; display: flex; justify-content: center; align-items: center; background: #0b0d12; cursor: pointer; }
+  .stage img { max-width: 100%; max-height: 100vh; display: block; }
+  .stage:fullscreen img { max-height: 100vh; max-width: 100vw; }
+  .time-label { position: absolute; top: 1rem; right: 1rem; background: rgba(10,15,20,0.55); border: 2px solid rgba(255,255,255,0.4); border-radius: 14px; padding: 0.9rem 1.5rem; color: #fff; text-shadow: 0 2px 6px rgba(0,0,0,0.7); pointer-events: none; backdrop-filter: blur(4px); letter-spacing: 0.02em; text-align: right; }
+  .time-label .descriptor { display: block; font-size: 2.4rem; font-weight: 700; line-height: 1.05; }
+  .time-label .ts { display: block; font-size: 1.4rem; opacity: 0.9; margin-top: 0.4rem; font-variant-numeric: tabular-nums; }
+  @media (max-width: 768px) {
+    .time-label { padding: 0.5rem 0.9rem; }
+    .time-label .descriptor { font-size: 1.6rem; }
+    .time-label .ts { font-size: 1rem; }
+  }
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+  <img id="frame" alt="sky">
+  <div class="time-label" aria-hidden="true">
+    <span class="descriptor" id="timeDescriptor">--</span>
+    <span class="ts" id="timeTs">--</span>
+  </div>
+</div>
+<script>
+const CAMERA = {{ camera_name | tojson }};
+const camQS = `camera=${encodeURIComponent(CAMERA)}`;
+const FPS = 10;
+const WINDOW_MS = 60 * 60 * 1000;
+
+const img = document.getElementById('frame');
+const stage = document.getElementById('stage');
+const timeDescriptor = document.getElementById('timeDescriptor');
+const timeTs = document.getElementById('timeTs');
+
+let frames = [];
+let idx = 0;
+let sunTimes = {};
+
+const WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function describePartOfDay(iso, sun) {
+  const t = iso.slice(11);
+  const [hh, mm] = t.split(':').map(Number);
+  const minute = hh * 60 + mm;
+  const sr = sun?.sunrise ? (() => { const [a,b]=sun.sunrise.split(':').map(Number); return a*60+b; })() : null;
+  const ss = sun?.sunset  ? (() => { const [a,b]=sun.sunset.split(':').map(Number);  return a*60+b; })() : null;
+  if (sr !== null && Math.abs(minute - sr) <= 15) return 'Sunrise';
+  if (ss !== null && Math.abs(minute - ss) <= 15) return 'Sunset';
+  if (sr !== null && minute < sr - 60) return 'Late night';
+  if (sr !== null && minute < sr - 15) return 'Pre-dawn';
+  if (sr !== null && minute < sr + 90)  return 'Early morning';
+  if (minute < 11 * 60)                  return 'Morning';
+  if (minute < 13 * 60)                  return 'Noon';
+  if (ss !== null && minute > ss + 120) return 'Night';
+  if (ss !== null && minute > ss + 30)  return 'Dusk';
+  if (ss !== null && minute > ss - 60)  return 'Late afternoon';
+  return 'Afternoon';
+}
+
+function readableTs(iso) {
+  const [d, t] = iso.split('T');
+  const [, mo, dd] = d.split('-');
+  const [hh, mm] = t.split(':');
+  let h = parseInt(hh, 10);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  const dow = WEEKDAYS[new Date(`${d}T${t}`).getDay()];
+  return `${dow} ${parseInt(mo,10)}/${parseInt(dd,10)} ${h}:${mm} ${ampm}`;
+}
+
+function updateTimeLabel(iso) {
+  const day = iso.slice(0, 10);
+  timeDescriptor.textContent = describePartOfDay(iso, sunTimes[day]);
+  timeTs.textContent = readableTs(iso);
+}
+
+function imgUrl(name) { return `/image/${name}?${camQS}`; }
+
+async function loadSunTimes() {
+  try {
+    const r = await fetch(`/api/anchors?${camQS}`);
+    const data = await r.json();
+    sunTimes = {};
+    for (const d of data) sunTimes[d.day] = { sunrise: d.sunrise, sunset: d.sunset };
+  } catch (e) { console.warn('sun times failed', e); }
+}
+
+async function loadFrames() {
+  const r = await fetch(`/api/frames?${camQS}`);
+  const all = await r.json();
+  if (!all.length) { frames = []; return; }
+  const lastMs = Date.parse(all[all.length - 1].ts);
+  const cutoff = lastMs - WINDOW_MS;
+  frames = all.filter(f => Date.parse(f.ts) >= cutoff);
+  if (idx >= frames.length) idx = Math.max(0, frames.length - 1);
+}
+
+function show(i) {
+  if (!frames.length) return;
+  idx = ((i % frames.length) + frames.length) % frames.length;
+  const f = frames[idx];
+  img.src = imgUrl(f.name);
+  updateTimeLabel(f.ts);
+}
+
+function tick() {
+  if (!frames.length) return;
+  idx = (idx + 1) % frames.length;
+  show(idx);
+}
+
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    (stage.requestFullscreen || stage.webkitRequestFullscreen)?.call(stage);
+  } else {
+    (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
+  }
+}
+
+stage.addEventListener('click', toggleFullscreen);
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'f' && e.key !== 'F') return;
+  e.preventDefault();
+  toggleFullscreen();
+});
+
+(async () => {
+  await loadSunTimes();
+  await loadFrames();
+  if (frames.length) show(0);
+  setInterval(tick, 1000 / FPS);
+  setInterval(async () => { await loadSunTimes(); await loadFrames(); }, 30000);
+})();
+</script>
+</body>
+</html>

@@ -150,6 +150,12 @@ def touch_for_camera(name: str, request: Request):
     return TEMPLATES.TemplateResponse(request, "live.html", {"touch_mode": True, "camera_name": name})
 
 
+@app.get("/camera/{name}/last-hour", response_class=HTMLResponse)
+def camera_last_hour(name: str, request: Request):
+    _check_camera_name(name)
+    return TEMPLATES.TemplateResponse(request, "last_hour.html", {"camera_name": name})
+
+
 @app.get("/api/cameras")
 def api_cameras():
     return {"default": DEFAULT_CAMERA, "cameras": CAMERA_NAMES}
