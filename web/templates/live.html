@@ -168,6 +168,25 @@ function withCam(url) {
 function imgUrl(name) {
   return CAMERA ? `/image/${name}?${camQS}` : `/image/${name}`;
 }
+const PRELOAD_AHEAD = 60;
+const PRELOAD_CAP = 600;
+const preloadCache = new Map();
+function preloadName(name) {
+  if (preloadCache.has(name)) return;
+  const im = new Image();
+  im.src = imgUrl(name);
+  preloadCache.set(name, im);
+}
+function preloadAhead(from) {
+  if (!frames.length) return;
+  const end = Math.min(rangeHi, from + PRELOAD_AHEAD);
+  for (let i = from; i <= end; i++) preloadName(frames[i].name);
+  if (preloadCache.size > PRELOAD_CAP) {
+    const drop = preloadCache.size - PRELOAD_CAP;
+    let n = 0;
+    for (const k of preloadCache.keys()) { if (n++ >= drop) break; preloadCache.delete(k); }
+  }
+}
 const FPS = 10;
 const FS_DURATION_MS = 30000;
 const IDLE_MS = 120000;
@@ -787,6 +806,7 @@ function applyRangeUI() {
   if (idx > rangeHi) idx = rangeHi;
   updateThumbColors();
   if (frames.length && seek) seek.style.setProperty('--track-gradient', buildGradientFor(rangeLo, rangeHi));
+  preloadAhead(rangeLo);
 }
 
 rangeMin.addEventListener('input', () => {
@@ -904,6 +924,7 @@ function show(i) {
   seek.style.setProperty('--thumb-color', frameTimeColor(idx));
   updateTimeLabel(f.ts);
   renderActiveEvents();
+  preloadAhead(idx + 1);
 }
 
 function findAnchorFor(day, kind) {
