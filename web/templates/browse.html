@@ -35,7 +35,8 @@
 <div class="status" id="status">loading…</div>
 <script>
 const urlParams = new URLSearchParams(window.location.search);
-const CAMERA = urlParams.get('camera') || urlParams.get('cam') || '';
+const SERVER_CAMERA = {{ camera_name | tojson }};
+const CAMERA = SERVER_CAMERA || urlParams.get('camera') || urlParams.get('cam') || '';
 const camQS = CAMERA ? `camera=${encodeURIComponent(CAMERA)}` : '';
 function withCam(url) {
   if (!CAMERA) return url;

@@ -215,7 +215,7 @@ def _check_camera_name(name: str) -> str:
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
-    return TEMPLATES.TemplateResponse(request, "index.html")
+    return TEMPLATES.TemplateResponse(request, "home.html", {"cameras": CAMERA_NAMES})
 
 
 @app.get("/camera/{name}", response_class=HTMLResponse)
@@ -226,7 +226,13 @@ def index_for_camera(name: str, request: Request):
 
 @app.get("/browse", response_class=HTMLResponse)
 def browse(request: Request):
-    return TEMPLATES.TemplateResponse(request, "browse.html")
+    return TEMPLATES.TemplateResponse(request, "browse.html", {"camera_name": None})
+
+
+@app.get("/browse/{name}", response_class=HTMLResponse)
+def browse_for_camera(name: str, request: Request):
+    _check_camera_name(name)
+    return TEMPLATES.TemplateResponse(request, "browse.html", {"camera_name": name})
 
 
 @app.get("/events", response_class=HTMLResponse)
@@ -262,9 +268,26 @@ def camera_last_hour(name: str, request: Request):
     return TEMPLATES.TemplateResponse(request, "last_hour.html", {"camera_name": name})
 
 
+@app.get("/touch/{name}/last-hour", response_class=HTMLResponse)
+def touch_last_hour(name: str, request: Request):
+    _check_camera_name(name)
+    return TEMPLATES.TemplateResponse(request, "last_hour.html", {"camera_name": name})
+
+
 @app.get("/api/cameras")
 def api_cameras():
     return {"default": DEFAULT_CAMERA, "cameras": CAMERA_NAMES}
+
+
+@app.get("/api/latest/{name}")
+def api_latest(name: str):
+    _check_camera_name(name)
+    sub = None if name == DEFAULT_CAMERA else name
+    frames = list_frames(sub)
+    if not frames:
+        raise HTTPException(404, "no frames")
+    ts, fname = frames[-1]
+    return {"name": fname, "ts": ts.isoformat()}
 
 
 @app.get("/api/frames")

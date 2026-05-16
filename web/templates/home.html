@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Denver Sky</title>
+<style>
+  body { margin: 0; background: #0b0d12; color: #e6e9ef; font-family: system-ui, sans-serif; }
+  header { padding: 0.6rem 1rem; display: flex; gap: 1rem; align-items: center; border-bottom: 1px solid #222; flex-wrap: wrap; }
+  header a { color: #8ab4ff; text-decoration: none; font-size: 0.9rem; }
+  header a:hover { text-decoration: underline; }
+  header .spacer { flex: 1; }
+  main { padding: 1rem; max-width: 1400px; margin: 0 auto; }
+  h1 { margin: 0 0 1rem; font-size: 1rem; color: #8ab4ff; text-transform: uppercase; letter-spacing: 0.08em; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem; }
+  .card { background: #11141c; border: 1px solid #222; border-radius: 6px; overflow: hidden; display: flex; flex-direction: column; }
+  .card .thumb { background: #000; aspect-ratio: 4/3; display: block; position: relative; }
+  .card .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .card .thumb .ph { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #556; font-size: 0.85rem; }
+  .card .meta { padding: 0.6rem 0.9rem 0.3rem; display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
+  .card .name { font-size: 1.05rem; font-weight: 600; color: #ffd76a; text-transform: capitalize; }
+  .card .ts { font-size: 0.75rem; color: #aab; font-variant-numeric: tabular-nums; }
+  .card .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; padding: 0.4rem 0.6rem 0.7rem; }
+  .card .actions a { background: #1f2630; color: #e6e9ef; border: 1px solid #333; border-radius: 4px; padding: 0.5rem 0.4rem; text-align: center; text-decoration: none; font-size: 0.82rem; }
+  .card .actions a:hover { background: #2a3340; }
+  .card .actions a.primary { background: #2a3a55; border-color: #3a557d; color: #cfe0ff; }
+  .card .actions a.primary:hover { background: #34466a; }
+  .empty { padding: 2rem; color: #788; text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <strong>Denver Sky</strong>
+  <span class="spacer"></span>
+  <a href="/browse">Browse</a>
+  <a href="/events">Events</a>
+  <a href="/status">Status</a>
+</header>
+<main>
+  <h1>Cameras</h1>
+  <div class="grid" id="grid"></div>
+  {% if not cameras %}
+  <div class="empty">No cameras configured.</div>
+  {% endif %}
+</main>
+<script>
+const CAMERAS = {{ cameras | tojson }};
+const grid = document.getElementById('grid');
+
+function imgUrl(cam, name) {
+  return `/image/${encodeURIComponent(name)}?camera=${encodeURIComponent(cam)}`;
+}
+
+function fmtTs(iso) {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString('en-US', { timeZone: 'America/Denver', hour12: false });
+  } catch (e) { return iso; }
+}
+
+function cardFor(cam) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <a class="thumb" href="/touch/${encodeURIComponent(cam)}">
+      <div class="ph" data-ph>loading…</div>
+    </a>
+    <div class="meta">
+      <span class="name">${cam}</span>
+      <span class="ts" data-ts></span>
+    </div>
+    <div class="actions">
+      <a class="primary" href="/touch/${encodeURIComponent(cam)}">Touch</a>
+      <a href="/touch/${encodeURIComponent(cam)}/last-hour">Last hour</a>
+      <a href="/camera/${encodeURIComponent(cam)}">Admin / TV</a>
+      <a href="/browse/${encodeURIComponent(cam)}">Browse</a>
+    </div>
+  `;
+  return card;
+}
+
+async function refreshThumb(cam, card) {
+  try {
+    const r = await fetch(`/api/latest/${encodeURIComponent(cam)}`, { cache: 'no-store' });
+    const thumb = card.querySelector('.thumb');
+    const ph = card.querySelector('[data-ph]');
+    const ts = card.querySelector('[data-ts]');
+    if (!r.ok) {
+      if (ph) ph.textContent = r.status === 404 ? 'no images yet' : `error ${r.status}`;
+      return;
+    }
+    const data = await r.json();
+    let img = thumb.querySelector('img');
+    if (!img) {
+      img = document.createElement('img');
+      thumb.appendChild(img);
+    }
+    img.src = imgUrl(cam, data.name);
+    img.alt = `${cam} latest`;
+    if (ph) ph.remove();
+    if (ts) ts.textContent = fmtTs(data.ts);
+  } catch (e) {
+    const ph = card.querySelector('[data-ph]');
+    if (ph) ph.textContent = 'error';
+  }
+}
+
+for (const cam of CAMERAS) {
+  const card = cardFor(cam);
+  grid.appendChild(card);
+  refreshThumb(cam, card);
+  setInterval(() => refreshThumb(cam, card), 30_000);
+}
+</script>
+</body>
+</html>
