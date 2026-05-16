@@ -4,6 +4,7 @@ import re
 import tempfile
 import threading
 import uuid
+from collections import OrderedDict
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -12,7 +13,8 @@ import cv2
 from astral import LocationInfo
 from astral.sun import sun
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 IMAGE_DIR = Path(os.environ.get("IMAGE_DIR", "/data/images"))
@@ -58,6 +60,28 @@ def _save_events(events):
 
 
 app = FastAPI()
+app.mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static")
+
+
+_FRAME_CACHE_MAX = int(os.environ.get("FRAME_CACHE_MAX", "2000"))
+_frame_cache: "OrderedDict[str, bytes]" = OrderedDict()
+_frame_cache_lock = threading.Lock()
+
+
+def _read_frame_cached(path: Path) -> bytes:
+    key = str(path)
+    with _frame_cache_lock:
+        data = _frame_cache.get(key)
+        if data is not None:
+            _frame_cache.move_to_end(key)
+            return data
+    data = path.read_bytes()
+    with _frame_cache_lock:
+        _frame_cache[key] = data
+        _frame_cache.move_to_end(key)
+        while len(_frame_cache) > _FRAME_CACHE_MAX:
+            _frame_cache.popitem(last=False)
+    return data
 
 
 def resolve_camera(camera, cam):
@@ -239,8 +263,12 @@ def image(name: str, download: int = 0, camera: str | None = None, cam: str | No
     p = camera_image_dir(sub) / name
     if not p.exists():
         raise HTTPException(404, "not found")
-    headers = {"Content-Disposition": f'attachment; filename="{name}"'} if download else {"Cache-Control": "public, max-age=31536000, immutable"}
-    return FileResponse(p, media_type="image/jpeg", headers=headers)
+    if download:
+        return FileResponse(p, media_type="image/jpeg",
+                            headers={"Content-Disposition": f'attachment; filename="{name}"'})
+    data = _read_frame_cached(p)
+    return Response(content=data, media_type="image/jpeg",
+                    headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
 
 @app.delete("/image/{name}")
@@ -255,6 +283,8 @@ def delete_image(name: str, camera: str | None = None, cam: str | None = None):
         p.unlink()
     except OSError as e:
         raise HTTPException(500, f"unlink failed: {e}")
+    with _frame_cache_lock:
+        _frame_cache.pop(str(p), None)
     return {"deleted": name}
 
 

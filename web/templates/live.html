@@ -143,7 +143,11 @@
     <span class="ts" id="tsLabel">--</span>
   </div>
 </div>
+<script src="/static/playback.js"></script>
 <script>
+const SP = window.SkyPlayback;
+const { imgUrl: _imgUrl, readableTs, formatTs, fmtTsHuman, fmtMD, fmt12hm, hhmmToMin,
+        describePartOfDay, timeColor, buildGradientFor, frameTimeColor, PreloadCache } = SP;
 const SERVER_CAMERA = {% if camera_name %}{{ camera_name | tojson }}{% else %}null{% endif %};
 const urlParams = new URLSearchParams(window.location.search);
 const CAMERA = SERVER_CAMERA || urlParams.get('camera') || urlParams.get('cam') || '';
@@ -152,28 +156,9 @@ function withCam(url) {
   if (!CAMERA) return url;
   return url + (url.includes('?') ? '&' : '?') + camQS;
 }
-function imgUrl(name) {
-  return CAMERA ? `/image/${name}?${camQS}` : `/image/${name}`;
-}
-const PRELOAD_AHEAD = 60;
-const PRELOAD_CAP = 600;
-const preloadCache = new Map();
-function preloadName(name) {
-  if (preloadCache.has(name)) return;
-  const im = new Image();
-  im.src = imgUrl(name);
-  preloadCache.set(name, im);
-}
-function preloadAhead(from) {
-  if (!frames.length) return;
-  const end = Math.min(rangeHi, from + PRELOAD_AHEAD);
-  for (let i = from; i <= end; i++) preloadName(frames[i].name);
-  if (preloadCache.size > PRELOAD_CAP) {
-    const drop = preloadCache.size - PRELOAD_CAP;
-    let n = 0;
-    for (const k of preloadCache.keys()) { if (n++ >= drop) break; preloadCache.delete(k); }
-  }
-}
+function imgUrl(name) { return _imgUrl(name, CAMERA); }
+const cache = new PreloadCache({ camera: CAMERA, ahead: 60, behind: 30, cap: 600 });
+function preloadAround(i) { cache.around(i, rangeLo, rangeHi); }
 const FPS = 10;
 const FS_DURATION_MS = 30000;
 const IDLE_MS = 120000;
@@ -214,39 +199,6 @@ const fsHint = document.querySelector('.fs-hint');
 const timeDescriptor = document.getElementById('timeDescriptor');
 const timeTs = document.getElementById('timeTs');
 
-const WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-function describePartOfDay(iso, sun) {
-  const t = iso.slice(11);
-  const [hh, mm] = t.split(':').map(Number);
-  const minute = hh * 60 + mm;
-  const sr = sun?.sunrise ? (() => { const [a,b]=sun.sunrise.split(':').map(Number); return a*60+b; })() : null;
-  const ss = sun?.sunset  ? (() => { const [a,b]=sun.sunset.split(':').map(Number);  return a*60+b; })() : null;
-
-  if (sr !== null && Math.abs(minute - sr) <= 15) return 'Sunrise';
-  if (ss !== null && Math.abs(minute - ss) <= 15) return 'Sunset';
-
-  if (sr !== null && minute < sr - 60) return 'Late night';
-  if (sr !== null && minute < sr - 15) return 'Pre-dawn';
-  if (sr !== null && minute < sr + 90)  return 'Early morning';
-  if (minute < 11 * 60)                  return 'Morning';
-  if (minute < 13 * 60)                  return 'Noon';
-  if (ss !== null && minute > ss + 120) return 'Night';
-  if (ss !== null && minute > ss + 30)  return 'Dusk';
-  if (ss !== null && minute > ss - 60)  return 'Late afternoon';
-  return 'Afternoon';
-}
-
-function readableTs(iso) {
-  const [d, t] = iso.split('T');
-  const [, mo, dd] = d.split('-');
-  const [hh, mm] = t.split(':');
-  let h = parseInt(hh, 10);
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  h = h % 12 || 12;
-  const dow = WEEKDAYS[new Date(`${d}T${t}`).getDay()];
-  return `${dow} ${parseInt(mo,10)}/${parseInt(dd,10)} ${h}:${mm} ${ampm}`;
-}
-
 function updateTimeLabel(iso) {
   if (!timeDescriptor) return;
   const day = iso.slice(0, 10);
@@ -282,17 +234,6 @@ img.addEventListener('load', positionOverlays);
 window.addEventListener('resize', positionOverlays);
 document.addEventListener('fullscreenchange', positionOverlays);
 
-const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-function formatTs(iso) {
-  if (!iso) return '';
-  const [d, t = '00:00:00'] = iso.split('T');
-  const [, mo, dd] = d.split('-');
-  const [hh, mm, ss] = t.split(':');
-  let h = parseInt(hh, 10);
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  h = h % 12 || 12;
-  return `${MONTHS[parseInt(mo,10)-1]} ${parseInt(dd,10)}, ${h}:${mm}:${ss} ${ampm}`;
-}
 function showThumbTooltip(idx, clientX, anchorEl) {
   if (!frames.length) return;
   thumbTooltip.textContent = formatTs(frames[idx].ts);
@@ -350,6 +291,7 @@ async function loadFrames() {
   const prevLen = frames.length;
   const wasAtEnd = rangeHi === Math.max(0, prevLen - 1);
   frames = data;
+  cache.setFrames(frames);
   const max = Math.max(0, frames.length - 1);
   computeAnchors();
   if (prevLen === 0) {
@@ -397,27 +339,6 @@ const SUNSET_HEAD = 30;
 const SUNSET_TAIL = 60;
 const FRAME_TOL = 60;
 
-function hhmmToMin(hhmm) { const [a, b] = hhmm.split(':').map(Number); return a * 60 + b; }
-function fmtMD(day) {
-  const [, mo, d] = day.split('-');
-  return `${parseInt(mo, 10)}/${parseInt(d, 10)}`;
-}
-function fmt12hm(hhmm) {
-  const [h, m] = hhmm.split(':').map(Number);
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  const hh = h % 12 || 12;
-  return `${hh}:${String(m).padStart(2, '0')} ${ampm}`;
-}
-function fmtTsHuman(iso) {
-  if (!iso) return '';
-  const [d, t = '00:00:00'] = iso.split('T');
-  const [, mo, dd] = d.split('-');
-  const [hh, mm, ss = '00'] = t.split(':');
-  let h = parseInt(hh, 10);
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  h = h % 12 || 12;
-  return `${parseInt(mo, 10)}/${parseInt(dd, 10)} ${h}:${mm}:${ss} ${ampm}`;
-}
 function findIdxAtMin(dayIndices, targetMin, tol = FRAME_TOL) {
   let best = -1, bestDiff = Infinity;
   for (const i of dayIndices) {
@@ -551,52 +472,9 @@ function buildPresets() {
   refreshActivePreset();
 }
 
-const SKY_STOPS = [
-  { m: 0,     c: [10, 16, 36] },
-  { m: 4 * 60, c: [22, 32, 70] },
-  { m: 5 * 60 + 30, c: [120, 70, 100] },
-  { m: 6 * 60 + 30, c: [220, 120, 80] },
-  { m: 8 * 60, c: [180, 200, 235] },
-  { m: 12 * 60, c: [155, 195, 240] },
-  { m: 17 * 60, c: [220, 165, 90] },
-  { m: 19 * 60, c: [200, 80, 70] },
-  { m: 20 * 60, c: [90, 40, 80] },
-  { m: 22 * 60, c: [26, 18, 50] },
-  { m: 1440,  c: [10, 16, 36] },
-];
-function timeColor(minute) {
-  for (let i = 0; i < SKY_STOPS.length - 1; i++) {
-    const a = SKY_STOPS[i], b = SKY_STOPS[i + 1];
-    if (minute >= a.m && minute <= b.m) {
-      const t = (minute - a.m) / (b.m - a.m || 1);
-      const r = Math.round(a.c[0] + (b.c[0] - a.c[0]) * t);
-      const g = Math.round(a.c[1] + (b.c[1] - a.c[1]) * t);
-      const bl = Math.round(a.c[2] + (b.c[2] - a.c[2]) * t);
-      return `rgb(${r},${g},${bl})`;
-    }
-  }
-  return 'rgb(10,16,36)';
-}
-function buildGradientFor(lo, hi) {
-  if (frames.length < 2 || hi <= lo) return '#1f2630';
-  const steps = 80;
-  const stops = [];
-  for (let i = 0; i <= steps; i++) {
-    const idx = Math.min(hi, Math.round(lo + (i / steps) * (hi - lo)));
-    const [hh, mm] = frames[idx].ts.slice(11).split(':').map(Number);
-    stops.push(`${timeColor(hh * 60 + mm)} ${(i * 100 / steps).toFixed(1)}%`);
-  }
-  return `linear-gradient(to right, ${stops.join(',')})`;
-}
 function applyTimelineGradient() {
   const track = document.querySelector('.rangebar .track');
-  if (track) track.style.background = buildGradientFor(0, frames.length - 1);
-}
-function frameTimeColor(i) {
-  if (!frames.length || i < 0 || i >= frames.length) return '#e6e9ef';
-  const t = frames[i].ts.slice(11);
-  const [hh, mm] = t.split(':').map(Number);
-  return timeColor(hh * 60 + mm);
+  if (track) track.style.background = buildGradientFor(frames, 0, frames.length - 1);
 }
 function frameToPct(i) {
   const total = Math.max(1, frames.length - 1);
@@ -607,9 +485,9 @@ function renderThumbs() {
   thumbLo.style.left = frameToPct(rangeLo) + '%';
   thumbHi.style.left = frameToPct(rangeHi) + '%';
   playhead.style.left = frameToPct(idx) + '%';
-  thumbLo.style.setProperty('--thumb-color', frameTimeColor(rangeLo));
-  thumbHi.style.setProperty('--thumb-color', frameTimeColor(rangeHi));
-  playhead.style.setProperty('--thumb-color', frameTimeColor(idx));
+  thumbLo.style.setProperty('--thumb-color', frameTimeColor(frames, rangeLo));
+  thumbHi.style.setProperty('--thumb-color', frameTimeColor(frames, rangeHi));
+  playhead.style.setProperty('--thumb-color', frameTimeColor(frames, idx));
 }
 function updateThumbColors() { renderThumbs(); }
 
@@ -796,7 +674,7 @@ function applyRangeUI() {
   if (idx < rangeLo) idx = rangeLo;
   if (idx > rangeHi) idx = rangeHi;
   renderThumbs();
-  preloadAhead(rangeLo);
+  preloadAround(idx);
 }
 
 function resumeFromStart() {
@@ -886,7 +764,7 @@ function show(i) {
   renderThumbs();
   updateTimeLabel(f.ts);
   renderActiveEvents();
-  preloadAhead(idx + 1);
+  preloadAround(idx);
 }
 
 img.addEventListener('load', () => setLoading(false));
@@ -930,15 +808,10 @@ function applyIdleReset() {
   setPlayBtn('Pause');
 }
 
-function frameReady(i) {
-  const im = preloadCache.get(frames[i].name);
-  return im && im.complete && im.naturalWidth > 0;
-}
-
 function tick() {
   if (!playing || !frames.length) return;
   const next = idx >= rangeHi ? rangeLo : idx + 1;
-  if (!frameReady(next)) { setLoading(true); preloadAhead(next); return; }
+  if (!cache.ready(next)) { setLoading(true); preloadAround(next); return; }
   if (idx >= rangeHi) {
     if (resetPending) {
       resetPending = false;
