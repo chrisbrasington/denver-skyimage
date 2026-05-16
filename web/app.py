@@ -239,7 +239,7 @@ def image(name: str, download: int = 0, camera: str | None = None, cam: str | No
     p = camera_image_dir(sub) / name
     if not p.exists():
         raise HTTPException(404, "not found")
-    headers = {"Content-Disposition": f'attachment; filename="{name}"'} if download else None
+    headers = {"Content-Disposition": f'attachment; filename="{name}"'} if download else {"Cache-Control": "public, max-age=31536000, immutable"}
     return FileResponse(p, media_type="image/jpeg", headers=headers)
 
 

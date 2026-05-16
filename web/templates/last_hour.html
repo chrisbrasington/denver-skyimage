@@ -94,6 +94,14 @@ async function loadSunTimes() {
   } catch (e) { console.warn('sun times failed', e); }
 }
 
+const preloadCache = new Map();
+function preload(name) {
+  if (preloadCache.has(name)) return;
+  const im = new Image();
+  im.src = imgUrl(name);
+  preloadCache.set(name, im);
+}
+
 async function loadFrames() {
   const r = await fetch(`/api/frames?${camQS}`);
   const all = await r.json();
@@ -102,6 +110,9 @@ async function loadFrames() {
   const cutoff = lastMs - WINDOW_MS;
   frames = all.filter(f => Date.parse(f.ts) >= cutoff);
   if (idx >= frames.length) idx = Math.max(0, frames.length - 1);
+  for (const f of frames) preload(f.name);
+  const keep = new Set(frames.map(f => f.name));
+  for (const k of preloadCache.keys()) if (!keep.has(k)) preloadCache.delete(k);
 }
 
 function show(i) {
