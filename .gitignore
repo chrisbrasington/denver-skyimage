@@ -2,7 +2,7 @@ downloaded_images*
 *mp4
 .claude
 videos
-pullvideo.ps1
+pullvideo*
 sample
 events
 *.log
