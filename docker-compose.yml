@@ -22,8 +22,7 @@ services:
       - ./downloaded_images:/data/images:z
       - ./events:/data/events:z
       - ./videos:/data/videos:z
-      - ${PODMAN_SOCK_HOST:-/run/user/1000/podman/podman.sock}:/var/run/podman.sock:ro
-      - ${DOCKER_SOCK_HOST:-/var/run/docker.sock}:/var/run/docker.sock:ro
+      - ${ENGINE_SOCK_HOST}:${ENGINE_SOCK_CONTAINER}:ro
 
   videogen:
     build: ./videogen

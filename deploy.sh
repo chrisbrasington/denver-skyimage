@@ -3,10 +3,12 @@ set -e
 if [ "$(hostname)" = "valhalla" ]; then
   export APP_PORT=8001
   ENGINE=docker
-  export CONTAINER_SOCK=/run/docker.sock
+  export ENGINE_SOCK_HOST=/var/run/docker.sock
+  export ENGINE_SOCK_CONTAINER=/var/run/docker.sock
 else
   ENGINE=podman
-  export CONTAINER_SOCK="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/podman/podman.sock"
+  export ENGINE_SOCK_HOST="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/podman/podman.sock"
+  export ENGINE_SOCK_CONTAINER=/var/run/podman.sock
 fi
 git pull
 $ENGINE compose build --no-cache capture web
