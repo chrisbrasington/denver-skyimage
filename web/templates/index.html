@@ -156,6 +156,30 @@ let idx = 0;
 let playing = true;
 let timer = null;
 
+const PRELOAD_AHEAD = 60;
+const PRELOAD_CAP = 600;
+const preloadCache = new Map();
+function preloadName(name) {
+  if (preloadCache.has(name)) return;
+  const im = new Image();
+  im.src = imgUrl(name);
+  preloadCache.set(name, im);
+}
+function preloadAhead(from) {
+  if (!frames.length) return;
+  const end = Math.min(rangeHi, from + PRELOAD_AHEAD);
+  for (let i = from; i <= end; i++) preloadName(frames[i].name);
+  if (preloadCache.size > PRELOAD_CAP) {
+    const drop = preloadCache.size - PRELOAD_CAP;
+    let n = 0;
+    for (const k of preloadCache.keys()) { if (n++ >= drop) break; preloadCache.delete(k); }
+  }
+}
+function frameReady(i) {
+  const im = preloadCache.get(frames[i].name);
+  return im && im.complete && im.naturalWidth > 0;
+}
+
 const img = document.getElementById('frame');
 const seek = document.getElementById('seek');
 const tsLabel = document.getElementById('tsLabel');
@@ -800,6 +824,7 @@ function applyRangeUI() {
   updateSaveLink();
   updateThumbColors();
   if (frames.length && seek) seek.style.setProperty('--track-gradient', buildGradientFor(rangeLo, rangeHi));
+  preloadAhead(rangeLo);
 }
 
 rangeMin.addEventListener('input', () => {
@@ -954,10 +979,13 @@ function show(i) {
   seek.value = idx;
   seek.style.setProperty('--thumb-color', frameTimeColor(idx));
   renderActiveEvents();
+  preloadAhead(idx + 1);
 }
 
 function tick() {
   if (!playing || !frames.length) return;
+  const next = idx >= rangeHi ? rangeLo : idx + 1;
+  if (!frameReady(next)) { preloadAhead(next); return; }
   if (idx >= rangeHi) {
     idx = rangeLo;
   } else {
