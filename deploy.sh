@@ -2,9 +2,12 @@
 set -e
 if [ "$(hostname)" = "valhalla" ]; then
   export APP_PORT=8001
+  ENGINE=docker
+else
+  ENGINE=podman
 fi
 git pull
-podman compose build --no-cache capture web
-podman compose up -d --force-recreate capture web
-podman system prune -af
-podman compose ps
+$ENGINE compose build --no-cache capture web
+$ENGINE compose up -d --force-recreate capture web
+$ENGINE system prune -af
+$ENGINE compose ps
