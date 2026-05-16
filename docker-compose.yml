@@ -21,7 +21,7 @@ services:
       - ./config.yaml:/config/config.yaml:ro,z
       - ./downloaded_images:/data/images:z
       - ./events:/data/events:z
-      - ${XDG_RUNTIME_DIR:-/run/user/1000}/podman/podman.sock:/var/run/docker.sock:ro
+      - ${CONTAINER_SOCK:-${XDG_RUNTIME_DIR:-/run/user/1000}/podman/podman.sock}:/var/run/docker.sock:ro
 
   videogen:
     build: ./videogen
