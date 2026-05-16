@@ -48,22 +48,13 @@
   .rangebar .ticks { display: flex; justify-content: space-between; font-size: 1.1rem; color: #aab; margin-bottom: 0.4rem; font-variant-numeric: tabular-nums; font-weight: 600; }
   .rangebar .anchors { position: relative; height: 22px; font-size: 0.95rem; color: #99a; font-variant-numeric: tabular-nums; pointer-events: none; }
   .rangebar .anchors span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
-  .rangebar .dual { position: relative; height: 44px; }
-  .rangebar .track { position: absolute; top: 18px; left: 0; right: 0; height: 8px; background: #1f2630; border-radius: 4px; }
-  .rangebar .selected { position: absolute; top: 0; height: 100%; background: transparent; border-radius: 4px; box-shadow: 0 -3px 0 #ffd76a, 0 3px 0 #ffd76a; }
-  .rangebar .daymarks { position: absolute; top: 12px; left: 0; right: 0; height: 20px; pointer-events: none; }
+  .rangebar .dual { position: relative; height: 48px; touch-action: none; cursor: pointer; }
+  .rangebar .track { position: absolute; top: 20px; left: 0; right: 0; height: 8px; background: #1f2630; border-radius: 4px; pointer-events: none; }
+  .rangebar .selected { position: absolute; top: 0; height: 100%; background: transparent; border-radius: 4px; box-shadow: 0 -3px 0 #ffd76a, 0 3px 0 #ffd76a; pointer-events: none; }
+  .rangebar .daymarks { position: absolute; top: 14px; left: 0; right: 0; height: 20px; pointer-events: none; }
   .rangebar .daymarks span { position: absolute; top: 0; width: 2px; height: 20px; background: #455; }
-  .rangebar input[type=range] { position: absolute; top: 8px; left: 0; width: 100%; height: 28px; background: transparent; appearance: none; pointer-events: none; margin: 0; }
-  .rangebar input[type=range]::-webkit-slider-thumb { appearance: none; width: 32px; height: 32px; border-radius: 50%; background: var(--thumb-color, #e6e9ef); border: 3px solid #ffd76a; box-shadow: 0 0 0 2px rgba(0,0,0,0.6); cursor: pointer; pointer-events: auto; }
-  .rangebar input[type=range]::-moz-range-thumb { width: 32px; height: 32px; border-radius: 50%; background: var(--thumb-color, #e6e9ef); border: 3px solid #ffd76a; box-shadow: 0 0 0 2px rgba(0,0,0,0.6); cursor: pointer; pointer-events: auto; }
-  .rangebar input[type=range]::-webkit-slider-runnable-track { background: transparent; }
-  .rangebar input[type=range]::-moz-range-track { background: transparent; }
-
-  .seekbar { width: 100%; height: 28px; appearance: none; background: transparent; }
-  .seekbar::-webkit-slider-runnable-track { height: 8px; background: var(--track-gradient, #1f2630); border-radius: 4px; }
-  .seekbar::-moz-range-track { height: 8px; background: var(--track-gradient, #1f2630); border-radius: 4px; }
-  .seekbar::-webkit-slider-thumb { appearance: none; width: 28px; height: 28px; border-radius: 50%; background: var(--thumb-color, #e6e9ef); border: 3px solid #ffd76a; box-shadow: 0 0 0 2px rgba(0,0,0,0.6); margin-top: -10px; }
-  .seekbar::-moz-range-thumb { width: 28px; height: 28px; border-radius: 50%; background: var(--thumb-color, #e6e9ef); border: 3px solid #ffd76a; box-shadow: 0 0 0 2px rgba(0,0,0,0.6); }
+  .rangebar .thumb { position: absolute; top: 8px; width: 32px; height: 32px; border-radius: 50%; background: var(--thumb-color, #e6e9ef); border: 3px solid #ffd76a; box-shadow: 0 0 0 2px rgba(0,0,0,0.6); transform: translateX(-50%); pointer-events: none; z-index: 2; }
+  .rangebar .playhead { position: absolute; top: 2px; width: 6px; height: 44px; background: var(--thumb-color, #ffd76a); border-radius: 3px; box-shadow: 0 0 0 2px #000, 0 0 10px rgba(255,215,106,1); transform: translateX(-50%); pointer-events: none; z-index: 3; }
   .camera-switcher { position: fixed; top: 1rem; right: 1rem; display: flex; flex-direction: column; gap: 0.5rem; z-index: 100; }
   .camera-switcher button { font-size: 1.1rem; padding: 0.7rem 1.2rem; min-width: 0; opacity: 0.7; }
   .camera-switcher button.active { opacity: 1; background: #2a3b5a; border-color: #8ab4ff; }
@@ -90,20 +81,13 @@
     body.touch-mode .row { gap: 0.6rem; }
     body.touch-mode .ts { font-size: 1rem; min-width: 0; }
 
-    body.touch-mode .rangebar .dual { height: 56px; }
-    body.touch-mode .rangebar .track { top: 24px; height: 12px; }
-    body.touch-mode .rangebar .daymarks { top: 20px; height: 24px; }
-    body.touch-mode .rangebar input[type=range] { top: 10px; height: 40px; }
-    body.touch-mode .rangebar input[type=range]::-webkit-slider-thumb { width: 44px; height: 44px; }
-    body.touch-mode .rangebar input[type=range]::-moz-range-thumb { width: 44px; height: 44px; }
+    body.touch-mode .rangebar .dual { height: 64px; }
+    body.touch-mode .rangebar .track { top: 28px; height: 12px; }
+    body.touch-mode .rangebar .daymarks { top: 22px; height: 24px; }
+    body.touch-mode .rangebar .thumb { top: 10px; width: 44px; height: 44px; }
+    body.touch-mode .rangebar .playhead { top: 2px; width: 8px; height: 60px; }
     body.touch-mode .rangebar .anchors { font-size: 0.75rem; }
     body.touch-mode .rangebar .ticks { font-size: 0.85rem; }
-
-    body.touch-mode .seekbar { height: 44px; }
-    body.touch-mode .seekbar::-webkit-slider-runnable-track { height: 12px; }
-    body.touch-mode .seekbar::-moz-range-track { height: 12px; }
-    body.touch-mode .seekbar::-webkit-slider-thumb { width: 44px; height: 44px; margin-top: -16px; }
-    body.touch-mode .seekbar::-moz-range-thumb { width: 44px; height: 44px; }
   }
 </style>
 </head>
@@ -132,7 +116,7 @@
 </div>
 <div class="bottombar">
   <div class="row">
-    <span class="slabel">Range</span>
+    <span class="slabel">Timeline</span>
     <div class="slot">
       <div class="rangebar">
         <div class="ticks">
@@ -140,20 +124,19 @@
           <span id="rangeEndLabel">--</span>
         </div>
         <div class="anchors" id="anchorLabels"></div>
-        <div class="dual">
+        <div class="dual" id="dual">
           <div class="track"><div class="selected" id="selBar"></div></div>
           <div class="daymarks" id="dayMarks"></div>
-          <input type="range" id="rangeMin" min="0" max="0" value="0">
-          <input type="range" id="rangeMax" min="0" max="0" value="0">
+          <div class="thumb" id="thumbLo"></div>
+          <div class="thumb" id="thumbHi"></div>
+          <div class="playhead" id="playhead"></div>
         </div>
       </div>
     </div>
   </div>
   <div class="row">
-    <span class="slabel">Playback</span>
     {% if not touch_mode %}<button id="playBtn">Pause</button>{% endif %}
     <span class="ts" id="tsLabel">--</span>
-    <div class="slot"><input type="range" id="seek" class="seekbar" min="0" max="0" value="0"></div>
   </div>
 </div>
 <script>
@@ -206,15 +189,16 @@ let presetActive = false;
 
 const img = document.getElementById('frame');
 const stage = document.getElementById('stage');
-const seek = document.getElementById('seek');
 const tsLabel = document.getElementById('tsLabel');
 const playBtn = document.getElementById('playBtn');
 const TOUCH_MODE = {{ 'true' if touch_mode else 'false' }};
 const IS_MOBILE = window.matchMedia('(max-width: 768px)').matches;
 const MOBILE_TOUCH = TOUCH_MODE && IS_MOBILE;
 function setPlayBtn(text) { if (playBtn) playBtn.textContent = text; }
-const rangeMin = document.getElementById('rangeMin');
-const rangeMax = document.getElementById('rangeMax');
+const dual = document.getElementById('dual');
+const thumbLo = document.getElementById('thumbLo');
+const thumbHi = document.getElementById('thumbHi');
+const playhead = document.getElementById('playhead');
 const selBar = document.getElementById('selBar');
 const dayMarks = document.getElementById('dayMarks');
 const anchorLabels = document.getElementById('anchorLabels');
@@ -361,8 +345,6 @@ async function loadFrames() {
   const wasAtEnd = rangeHi === Math.max(0, prevLen - 1);
   frames = data;
   const max = Math.max(0, frames.length - 1);
-  rangeMin.max = max;
-  rangeMax.max = max;
   computeAnchors();
   if (prevLen === 0) {
     rangeLo = 0;
@@ -603,7 +585,6 @@ function buildGradientFor(lo, hi) {
 function applyTimelineGradient() {
   const track = document.querySelector('.rangebar .track');
   if (track) track.style.background = buildGradientFor(0, frames.length - 1);
-  if (seek) seek.style.setProperty('--track-gradient', buildGradientFor(rangeLo, rangeHi));
 }
 function frameTimeColor(i) {
   if (!frames.length || i < 0 || i >= frames.length) return '#e6e9ef';
@@ -611,12 +592,20 @@ function frameTimeColor(i) {
   const [hh, mm] = t.split(':').map(Number);
   return timeColor(hh * 60 + mm);
 }
-function updateThumbColors() {
-  if (!frames.length) return;
-  rangeMin.style.setProperty('--thumb-color', frameTimeColor(rangeLo));
-  rangeMax.style.setProperty('--thumb-color', frameTimeColor(rangeHi));
-  seek.style.setProperty('--thumb-color', frameTimeColor(idx));
+function frameToPct(i) {
+  const total = Math.max(1, frames.length - 1);
+  return (Math.max(0, Math.min(total, i)) / total) * 100;
 }
+function renderThumbs() {
+  if (!frames.length) return;
+  thumbLo.style.left = frameToPct(rangeLo) + '%';
+  thumbHi.style.left = frameToPct(rangeHi) + '%';
+  playhead.style.left = frameToPct(idx) + '%';
+  thumbLo.style.setProperty('--thumb-color', frameTimeColor(rangeLo));
+  thumbHi.style.setProperty('--thumb-color', frameTimeColor(rangeHi));
+  playhead.style.setProperty('--thumb-color', frameTimeColor(idx));
+}
+function updateThumbColors() { renderThumbs(); }
 
 let events = [];
 const shownEvents = new Set();
@@ -787,8 +776,6 @@ function applyRangeUI() {
     rangeEndLabel.textContent = '--';
     return;
   }
-  rangeMin.value = rangeLo;
-  rangeMax.value = rangeHi;
   const total = frames.length - 1;
   const loPct = (rangeLo / total) * 100;
   const hiPct = (rangeHi / total) * 100;
@@ -800,36 +787,11 @@ function applyRangeUI() {
     ? `NOW (${fmtTsHuman(frames[rangeHi].ts)})`
     : fmtTsHuman(frames[rangeHi].ts);
   rangeEndLabel.style.color = atCurrent ? '#7fd17a' : '#aab';
-  seek.min = rangeLo;
-  seek.max = rangeHi;
   if (idx < rangeLo) idx = rangeLo;
   if (idx > rangeHi) idx = rangeHi;
-  updateThumbColors();
-  if (frames.length && seek) seek.style.setProperty('--track-gradient', buildGradientFor(rangeLo, rangeHi));
+  renderThumbs();
   preloadAhead(rangeLo);
 }
-
-rangeMin.addEventListener('input', () => {
-  let v = parseInt(rangeMin.value, 10);
-  v = snapToDay(v);
-  if (v >= rangeHi) v = Math.max(0, rangeHi - 1);
-  rangeLo = v;
-  playing = false;
-  setPlayBtn('Play');
-  applyRangeUI();
-  show(rangeLo);
-});
-
-rangeMax.addEventListener('input', () => {
-  let v = parseInt(rangeMax.value, 10);
-  v = snapToDay(v);
-  if (v <= rangeLo) v = Math.min(frames.length - 1, rangeLo + 1);
-  rangeHi = v;
-  playing = false;
-  setPlayBtn('Play');
-  applyRangeUI();
-  show(rangeHi);
-});
 
 function resumeFromStart() {
   idx = rangeLo;
@@ -838,81 +800,74 @@ function resumeFromStart() {
   setPlayBtn('Pause');
 }
 
-rangeMin.addEventListener('change', resumeFromStart);
-rangeMax.addEventListener('change', resumeFromStart);
-
-const dual = document.querySelector('.rangebar .dual');
-let activeThumb = null;
-
-function pointerToFrame(clientX, rect) {
+function pointerToFrame(clientX) {
+  const rect = dual.getBoundingClientRect();
   const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-  return Math.round(pct * (frames.length - 1));
+  return Math.round(pct * Math.max(0, frames.length - 1));
 }
 
-function updateActiveThumb(target) {
-  let v = snapToDay(target);
-  if (activeThumb === 'lo') {
-    if (v >= rangeHi) v = Math.max(0, rangeHi - 1);
-    rangeLo = v;
-    show(rangeLo);
+let activeDrag = null;
+
+function pickActive(clientX) {
+  const r = dual.getBoundingClientRect();
+  const total = Math.max(1, frames.length - 1);
+  const xLo = r.left + (rangeLo / total) * r.width;
+  const xHi = r.left + (rangeHi / total) * r.width;
+  const xPh = r.left + (idx / total) * r.width;
+  const HIT = 36;
+  const cands = [
+    ['playhead', Math.abs(clientX - xPh)],
+    ['lo', Math.abs(clientX - xLo)],
+    ['hi', Math.abs(clientX - xHi)],
+  ].sort((a, b) => a[1] - b[1]);
+  return cands[0][1] <= HIT ? cands[0][0] : 'playhead';
+}
+
+function updateDrag(clientX) {
+  if (!activeDrag || !frames.length) return;
+  let v = snapToDay(pointerToFrame(clientX));
+  v = Math.max(0, Math.min(frames.length - 1, v));
+  if (activeDrag === 'lo') {
+    rangeLo = Math.min(v, Math.max(0, rangeHi - 1));
+    if (idx < rangeLo) idx = rangeLo;
+  } else if (activeDrag === 'hi') {
+    rangeHi = Math.max(v, Math.min(frames.length - 1, rangeLo + 1));
+    if (idx > rangeHi) idx = rangeHi;
   } else {
-    if (v <= rangeLo) v = Math.min(frames.length - 1, rangeLo + 1);
-    rangeHi = v;
-    show(rangeHi);
+    if (v < rangeLo) rangeLo = v;
+    if (v > rangeHi) rangeHi = v;
+    idx = v;
   }
   applyRangeUI();
+  show(idx);
+  const anchor = activeDrag === 'lo' ? rangeLo : activeDrag === 'hi' ? rangeHi : idx;
+  showThumbTooltip(anchor, clientX, dual);
 }
 
 dual.addEventListener('pointerdown', (e) => {
   if (!frames.length) return;
-  if (e.target.tagName === 'INPUT') return;
+  e.preventDefault();
   e.stopPropagation();
-  const rect = dual.getBoundingClientRect();
-  const target = pointerToFrame(e.clientX, rect);
-  const selSize = Math.max(1, rangeHi - rangeLo);
-  const endTol = Math.max(2, Math.floor(selSize * 0.20));
-  activeThumb = (target > rangeHi || target >= rangeHi - endTol) ? 'hi' : 'lo';
-  if (!TOUCH_MODE) {
-    playing = false;
-    setPlayBtn('Play');
-  }
   try { dual.setPointerCapture(e.pointerId); } catch {}
-  updateActiveThumb(target);
-  showThumbTooltip(activeThumb === 'hi' ? rangeHi : rangeLo, e.clientX, dual);
+  activeDrag = pickActive(e.clientX);
+  playing = false;
+  setPlayBtn('Play');
+  updateDrag(e.clientX);
 
-  const onMove = (ev) => {
-    if (!activeThumb) return;
-    const r = dual.getBoundingClientRect();
-    updateActiveThumb(pointerToFrame(ev.clientX, r));
-    showThumbTooltip(activeThumb === 'hi' ? rangeHi : rangeLo, ev.clientX, dual);
-  };
+  const onMove = (ev) => updateDrag(ev.clientX);
   const onUp = () => {
-    activeThumb = null;
+    activeDrag = null;
     hideThumbTooltip();
     dual.removeEventListener('pointermove', onMove);
     dual.removeEventListener('pointerup', onUp);
     dual.removeEventListener('pointercancel', onUp);
-    resumeFromStart();
+    playing = true;
+    setPlayBtn('Pause');
   };
   dual.addEventListener('pointermove', onMove);
   dual.addEventListener('pointerup', onUp);
   dual.addEventListener('pointercancel', onUp);
 });
-
-function seekTooltipUpdate(ev) {
-  const r = seek.getBoundingClientRect();
-  const max = parseInt(seek.max, 10) || frames.length - 1;
-  const min = parseInt(seek.min, 10) || 0;
-  const v = parseInt(seek.value, 10);
-  const denom = Math.max(1, max - min);
-  const x = r.left + ((v - min) / denom) * r.width;
-  showThumbTooltip(v, ev?.clientX ?? x, seek);
-}
-seek.addEventListener('pointerdown', (e) => seekTooltipUpdate(e));
-seek.addEventListener('input', (e) => seekTooltipUpdate(e));
-seek.addEventListener('pointerup', hideThumbTooltip);
-seek.addEventListener('pointercancel', hideThumbTooltip);
-seek.addEventListener('change', hideThumbTooltip);
 
 function show(i) {
   if (!frames.length) return;
@@ -920,8 +875,7 @@ function show(i) {
   const f = frames[idx];
   img.src = imgUrl(f.name);
   tsLabel.textContent = fmtTsHuman(f.ts);
-  seek.value = idx;
-  seek.style.setProperty('--thumb-color', frameTimeColor(idx));
+  renderThumbs();
   updateTimeLabel(f.ts);
   renderActiveEvents();
   preloadAhead(idx + 1);
@@ -999,20 +953,7 @@ if (playBtn) {
   });
 }
 
-seek.addEventListener('input', () => {
-  if (!TOUCH_MODE) {
-    playing = false;
-    setPlayBtn('Play');
-  }
-  show(parseInt(seek.value, 10));
-});
-
-seek.addEventListener('change', () => {
-  playing = true;
-  setPlayBtn('Pause');
-});
-
-[rangeMin, rangeMax, seek, playBtn].filter(Boolean).forEach(el => {
+[playBtn].filter(Boolean).forEach(el => {
   el.addEventListener('click', e => e.stopPropagation());
   el.addEventListener('touchstart', e => e.stopPropagation(), { passive: true });
 });

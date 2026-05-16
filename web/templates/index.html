@@ -48,12 +48,6 @@
   .row { display: flex; gap: 0.75rem; align-items: center; }
   .row .slot { flex: 1; min-width: 0; }
   .slabel { font-size: 0.75rem; color: #8ab4ff; min-width: 6rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
-  input[type=range] { width: 100%; min-width: 0; }
-  #seek { appearance: none; background: transparent; height: 18px; }
-  #seek::-webkit-slider-runnable-track { height: 6px; background: var(--track-gradient, #1f2630); border-radius: 3px; }
-  #seek::-moz-range-track { height: 6px; background: var(--track-gradient, #1f2630); border-radius: 3px; }
-  #seek::-webkit-slider-thumb { appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--thumb-color, #e6e9ef); border: 2px solid #ffd76a; box-shadow: 0 0 0 1px rgba(0,0,0,0.5); cursor: pointer; margin-top: -4px; }
-  #seek::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--thumb-color, #e6e9ef); border: 2px solid #ffd76a; box-shadow: 0 0 0 1px rgba(0,0,0,0.5); cursor: pointer; }
   button { background: #1f2630; color: #e6e9ef; border: 1px solid #333; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; }
   button:hover { background: #2a3340; }
   .ts { font-variant-numeric: tabular-nums; min-width: 18ch; font-size: 0.8rem; }
@@ -62,16 +56,13 @@
   .rangebar .ticks { display: flex; justify-content: space-between; font-size: 0.7rem; color: #788; margin-bottom: 0.15rem; font-variant-numeric: tabular-nums; }
   .rangebar .anchors { position: relative; height: 14px; font-size: 0.6rem; color: #99a; font-variant-numeric: tabular-nums; pointer-events: none; }
   .rangebar .anchors span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
-  .rangebar .dual { position: relative; height: 24px; }
-  .rangebar .track { position: absolute; top: 10px; left: 0; right: 0; height: 4px; background: #1f2630; border-radius: 2px; }
-  .rangebar .selected { position: absolute; top: 0; height: 100%; background: transparent; border-radius: 2px; box-shadow: 0 -2px 0 #ffd76a, 0 2px 0 #ffd76a; }
-  .rangebar .daymarks { position: absolute; top: 6px; left: 0; right: 0; height: 12px; pointer-events: none; }
+  .rangebar .dual { position: relative; height: 28px; touch-action: none; cursor: pointer; }
+  .rangebar .track { position: absolute; top: 12px; left: 0; right: 0; height: 4px; background: #1f2630; border-radius: 2px; pointer-events: none; }
+  .rangebar .selected { position: absolute; top: 0; height: 100%; background: transparent; border-radius: 2px; box-shadow: 0 -2px 0 #ffd76a, 0 2px 0 #ffd76a; pointer-events: none; }
+  .rangebar .daymarks { position: absolute; top: 8px; left: 0; right: 0; height: 12px; pointer-events: none; }
   .rangebar .daymarks span { position: absolute; top: 0; width: 1px; height: 12px; background: #455; }
-  .rangebar input[type=range] { position: absolute; top: 4px; left: 0; width: 100%; height: 16px; background: transparent; appearance: none; pointer-events: none; margin: 0; }
-  .rangebar input[type=range]::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--thumb-color, #e6e9ef); border: 2px solid #ffd76a; box-shadow: 0 0 0 1px rgba(0,0,0,0.5); cursor: pointer; pointer-events: auto; }
-  .rangebar input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: var(--thumb-color, #e6e9ef); border: 2px solid #ffd76a; box-shadow: 0 0 0 1px rgba(0,0,0,0.5); cursor: pointer; pointer-events: auto; }
-  .rangebar input[type=range]::-webkit-slider-runnable-track { background: transparent; }
-  .rangebar input[type=range]::-moz-range-track { background: transparent; }
+  .rangebar .thumb { position: absolute; top: 6px; width: 16px; height: 16px; border-radius: 50%; background: var(--thumb-color, #e6e9ef); border: 2px solid #ffd76a; box-shadow: 0 0 0 1px rgba(0,0,0,0.5); transform: translateX(-50%); pointer-events: none; z-index: 2; }
+  .rangebar .playhead { position: absolute; top: 1px; width: 4px; height: 26px; background: var(--thumb-color, #ffd76a); border-radius: 2px; box-shadow: 0 0 0 1px #000, 0 0 8px rgba(255,215,106,0.9); transform: translateX(-50%); pointer-events: none; z-index: 3; }
 </style>
 </head>
 <body>
@@ -108,7 +99,7 @@
 </div>
 <div class="bottombar">
   <div class="row">
-    <span class="slabel">Range</span>
+    <span class="slabel">Timeline</span>
     <div class="slot">
       <div class="rangebar">
         <div class="ticks">
@@ -116,20 +107,19 @@
           <span id="rangeEndLabel">--</span>
         </div>
         <div class="anchors" id="anchorLabels"></div>
-        <div class="dual">
+        <div class="dual" id="dual">
           <div class="track"><div class="selected" id="selBar"></div></div>
           <div class="daymarks" id="dayMarks"></div>
-          <input type="range" id="rangeMin" min="0" max="0" value="0">
-          <input type="range" id="rangeMax" min="0" max="0" value="0">
+          <div class="thumb" id="thumbLo"></div>
+          <div class="thumb" id="thumbHi"></div>
+          <div class="playhead" id="playhead"></div>
         </div>
       </div>
     </div>
   </div>
   <div class="row">
-    <span class="slabel">Playback</span>
     <button id="playBtn">Pause</button>
     <span class="ts" id="tsLabel">--</span>
-    <div class="slot"><input type="range" id="seek" min="0" max="0" value="0"></div>
     <label>FPS <input type="number" id="fps" value="10" min="1" max="60" style="width: 4em;"></label>
     <button id="fsBtn" title="Fullscreen">⛶</button>
   </div>
@@ -181,7 +171,6 @@ function frameReady(i) {
 }
 
 const img = document.getElementById('frame');
-const seek = document.getElementById('seek');
 const tsLabel = document.getElementById('tsLabel');
 const playBtn = document.getElementById('playBtn');
 const fpsInput = document.getElementById('fps');
@@ -213,8 +202,10 @@ function showThumbTooltip(idx, clientX, anchorEl) {
   thumbTooltip.classList.add('show');
 }
 function hideThumbTooltip() { thumbTooltip.classList.remove('show'); }
-const rangeMin = document.getElementById('rangeMin');
-const rangeMax = document.getElementById('rangeMax');
+const dual = document.getElementById('dual');
+const thumbLo = document.getElementById('thumbLo');
+const thumbHi = document.getElementById('thumbHi');
+const playhead = document.getElementById('playhead');
 const selBar = document.getElementById('selBar');
 const dayMarks = document.getElementById('dayMarks');
 const anchorLabels = document.getElementById('anchorLabels');
@@ -429,9 +420,6 @@ async function loadFrames() {
   const wasAtEnd = rangeHi === Math.max(0, prevLen - 1);
   frames = data;
   const max = Math.max(0, frames.length - 1);
-  seek.max = max;
-  rangeMin.max = max;
-  rangeMax.max = max;
   computeAnchors();
   if (prevLen === 0) {
     rangeLo = 0;
@@ -702,7 +690,6 @@ function buildGradientFor(lo, hi) {
 function applyTimelineGradient() {
   const track = document.querySelector('.rangebar .track');
   if (track) track.style.background = buildGradientFor(0, frames.length - 1);
-  if (seek) seek.style.setProperty('--track-gradient', buildGradientFor(rangeLo, rangeHi));
 }
 function frameTimeColor(i) {
   if (!frames.length || i < 0 || i >= frames.length) return '#e6e9ef';
@@ -710,12 +697,20 @@ function frameTimeColor(i) {
   const [hh, mm] = t.split(':').map(Number);
   return timeColor(hh * 60 + mm);
 }
-function updateThumbColors() {
-  if (!frames.length) return;
-  rangeMin.style.setProperty('--thumb-color', frameTimeColor(rangeLo));
-  rangeMax.style.setProperty('--thumb-color', frameTimeColor(rangeHi));
-  seek.style.setProperty('--thumb-color', frameTimeColor(idx));
+function frameToPct(i) {
+  const total = Math.max(1, frames.length - 1);
+  return (Math.max(0, Math.min(total, i)) / total) * 100;
 }
+function renderThumbs() {
+  if (!frames.length) return;
+  thumbLo.style.left = frameToPct(rangeLo) + '%';
+  thumbHi.style.left = frameToPct(rangeHi) + '%';
+  playhead.style.left = frameToPct(idx) + '%';
+  thumbLo.style.setProperty('--thumb-color', frameTimeColor(rangeLo));
+  thumbHi.style.setProperty('--thumb-color', frameTimeColor(rangeHi));
+  playhead.style.setProperty('--thumb-color', frameTimeColor(idx));
+}
+function updateThumbColors() { renderThumbs(); }
 
 function computeAnchors() {
   anchors = [];
@@ -804,8 +799,6 @@ function applyRangeUI() {
     rangeEndLabel.textContent = '--';
     return;
   }
-  rangeMin.value = rangeLo;
-  rangeMax.value = rangeHi;
   const total = frames.length - 1;
   const loPct = (rangeLo / total) * 100;
   const hiPct = (rangeHi / total) * 100;
@@ -817,37 +810,12 @@ function applyRangeUI() {
     ? `NOW (${fmtTsHuman(frames[rangeHi].ts)})`
     : fmtTsHuman(frames[rangeHi].ts);
   rangeEndLabel.style.color = atCurrent ? '#7fd17a' : '#788';
-  seek.min = rangeLo;
-  seek.max = rangeHi;
   if (idx < rangeLo) idx = rangeLo;
   if (idx > rangeHi) idx = rangeHi;
   updateSaveLink();
-  updateThumbColors();
-  if (frames.length && seek) seek.style.setProperty('--track-gradient', buildGradientFor(rangeLo, rangeHi));
+  renderThumbs();
   preloadAhead(rangeLo);
 }
-
-rangeMin.addEventListener('input', () => {
-  let v = parseInt(rangeMin.value, 10);
-  v = snapToDay(v);
-  if (v >= rangeHi) v = Math.max(0, rangeHi - 1);
-  rangeLo = v;
-  playing = false;
-  playBtn.textContent = 'Play';
-  applyRangeUI();
-  show(rangeLo);
-});
-
-rangeMax.addEventListener('input', () => {
-  let v = parseInt(rangeMax.value, 10);
-  v = snapToDay(v);
-  if (v <= rangeLo) v = Math.min(frames.length - 1, rangeLo + 1);
-  rangeHi = v;
-  playing = false;
-  playBtn.textContent = 'Play';
-  applyRangeUI();
-  show(rangeHi);
-});
 
 function resumeFromStart() {
   idx = rangeLo;
@@ -856,80 +824,75 @@ function resumeFromStart() {
   playBtn.textContent = 'Pause';
 }
 
-rangeMin.addEventListener('change', resumeFromStart);
-rangeMax.addEventListener('change', resumeFromStart);
-
-const dual = document.querySelector('.rangebar .dual');
-let activeThumb = null;
-
-function pointerToFrame(clientX, rect) {
+function pointerToFrame(clientX) {
+  const rect = dual.getBoundingClientRect();
   const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-  return Math.round(pct * (frames.length - 1));
+  return Math.round(pct * Math.max(0, frames.length - 1));
 }
 
-function updateActiveThumb(target) {
-  let v = snapToDay(target);
-  if (activeThumb === 'lo') {
-    if (v >= rangeHi) v = Math.max(0, rangeHi - 1);
-    rangeLo = v;
-    show(rangeLo);
+let activeDrag = null;
+let dragWasPlaying = true;
+
+function pickActive(clientX) {
+  const r = dual.getBoundingClientRect();
+  const total = Math.max(1, frames.length - 1);
+  const xLo = r.left + (rangeLo / total) * r.width;
+  const xHi = r.left + (rangeHi / total) * r.width;
+  const xPh = r.left + (idx / total) * r.width;
+  const HIT = 22;
+  const cands = [
+    ['playhead', Math.abs(clientX - xPh)],
+    ['lo', Math.abs(clientX - xLo)],
+    ['hi', Math.abs(clientX - xHi)],
+  ].sort((a, b) => a[1] - b[1]);
+  return cands[0][1] <= HIT ? cands[0][0] : 'playhead';
+}
+
+function updateDrag(clientX) {
+  if (!activeDrag || !frames.length) return;
+  let v = snapToDay(pointerToFrame(clientX));
+  v = Math.max(0, Math.min(frames.length - 1, v));
+  if (activeDrag === 'lo') {
+    rangeLo = Math.min(v, Math.max(0, rangeHi - 1));
+    if (idx < rangeLo) idx = rangeLo;
+  } else if (activeDrag === 'hi') {
+    rangeHi = Math.max(v, Math.min(frames.length - 1, rangeLo + 1));
+    if (idx > rangeHi) idx = rangeHi;
   } else {
-    if (v <= rangeLo) v = Math.min(frames.length - 1, rangeLo + 1);
-    rangeHi = v;
-    show(rangeHi);
+    if (v < rangeLo) rangeLo = v;
+    if (v > rangeHi) rangeHi = v;
+    idx = v;
   }
   applyRangeUI();
+  show(idx);
+  const anchor = activeDrag === 'lo' ? rangeLo : activeDrag === 'hi' ? rangeHi : idx;
+  showThumbTooltip(anchor, clientX, dual);
 }
 
 dual.addEventListener('pointerdown', (e) => {
   if (!frames.length) return;
-  if (e.target.tagName === 'INPUT') return;
-  const rect = dual.getBoundingClientRect();
-  const target = pointerToFrame(e.clientX, rect);
-  const selSize = Math.max(1, rangeHi - rangeLo);
-  const endTol = Math.max(2, Math.floor(selSize * 0.20));
-  activeThumb = (target > rangeHi || target >= rangeHi - endTol) ? 'hi' : 'lo';
+  e.preventDefault();
+  try { dual.setPointerCapture(e.pointerId); } catch {}
+  activeDrag = pickActive(e.clientX);
+  dragWasPlaying = playing;
   playing = false;
   playBtn.textContent = 'Play';
-  try { dual.setPointerCapture(e.pointerId); } catch {}
-  updateActiveThumb(target);
-  showThumbTooltip(activeThumb === 'hi' ? rangeHi : rangeLo, e.clientX, dual);
+  updateDrag(e.clientX);
 
-  const onMove = (ev) => {
-    if (!activeThumb) return;
-    const r = dual.getBoundingClientRect();
-    updateActiveThumb(pointerToFrame(ev.clientX, r));
-    showThumbTooltip(activeThumb === 'hi' ? rangeHi : rangeLo, ev.clientX, dual);
-  };
+  const onMove = (ev) => updateDrag(ev.clientX);
   const onUp = () => {
-    activeThumb = null;
+    activeDrag = null;
     hideThumbTooltip();
     dual.removeEventListener('pointermove', onMove);
     dual.removeEventListener('pointerup', onUp);
     dual.removeEventListener('pointercancel', onUp);
-    resumeFromStart();
+    playing = true;
+    playBtn.textContent = 'Pause';
   };
   dual.addEventListener('pointermove', onMove);
   dual.addEventListener('pointerup', onUp);
   dual.addEventListener('pointercancel', onUp);
 });
-
-function seekTooltipUpdate(ev) {
-  const r = seek.getBoundingClientRect();
-  const max = parseInt(seek.max, 10) || frames.length - 1;
-  const min = parseInt(seek.min, 10) || 0;
-  const v = parseInt(seek.value, 10);
-  const denom = Math.max(1, max - min);
-  const x = r.left + ((v - min) / denom) * r.width;
-  showThumbTooltip(v, ev?.clientX ?? x, seek);
-}
-seek.addEventListener('pointerdown', (e) => {
-  seekTooltipUpdate(e);
-});
-seek.addEventListener('input', (e) => seekTooltipUpdate(e));
-seek.addEventListener('pointerup', hideThumbTooltip);
-seek.addEventListener('pointercancel', hideThumbTooltip);
-seek.addEventListener('change', hideThumbTooltip);
 
 document.addEventListener('keydown', (e) => { if (e.key === 'Shift') shiftDown = true; });
 document.addEventListener('keyup', (e) => { if (e.key === 'Shift') shiftDown = false; });
@@ -976,8 +939,7 @@ function show(i) {
   const f = frames[idx];
   img.src = imgUrl(f.name);
   tsLabel.textContent = fmtTsHuman(f.ts);
-  seek.value = idx;
-  seek.style.setProperty('--thumb-color', frameTimeColor(idx));
+  renderThumbs();
   renderActiveEvents();
   preloadAhead(idx + 1);
 }
@@ -1003,17 +965,6 @@ function restartTimer() {
 playBtn.addEventListener('click', () => {
   playing = !playing;
   playBtn.textContent = playing ? 'Pause' : 'Play';
-});
-
-seek.addEventListener('input', () => {
-  playing = false;
-  playBtn.textContent = 'Play';
-  show(parseInt(seek.value, 10));
-});
-
-seek.addEventListener('change', () => {
-  playing = true;
-  playBtn.textContent = 'Pause';
 });
 
 fpsInput.addEventListener('change', () => {
