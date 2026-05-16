@@ -23,6 +23,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 IMAGE_DIR = Path(os.environ.get("IMAGE_DIR", "/data/images"))
+VIDEO_DIR = Path(os.environ.get("VIDEO_DIR", "/data/videos"))
 EVENTS_DIR = Path(os.environ.get("EVENTS_DIR", "/data/events"))
 EVENTS_FILE = EVENTS_DIR / "events.json"
 CAMERAS_PATH = os.environ.get("CAMERAS_PATH", "/config/cameras.json")
@@ -130,6 +131,38 @@ def _container_stats():
                 out.append({"name": c.name, "status": c.status, "error": str(e)})
     except Exception as e:
         print(f"docker stats failed: {e}", flush=True)
+    return out
+
+
+VIDEO_RE = re.compile(r"^(.+?)_(\d{4}-\d{2}-\d{2})\.mp4$")
+
+
+def list_videos():
+    """Return list of dicts: {camera, day, name, size_bytes, mtime} sorted desc by day."""
+    out = []
+    if not VIDEO_DIR.exists():
+        return out
+    for cam_dir in VIDEO_DIR.iterdir():
+        if not cam_dir.is_dir():
+            continue
+        for p in cam_dir.iterdir():
+            if not p.is_file():
+                continue
+            m = VIDEO_RE.match(p.name)
+            if not m:
+                continue
+            try:
+                st = p.stat()
+            except OSError:
+                continue
+            out.append({
+                "camera": cam_dir.name,
+                "day": m.group(2),
+                "name": p.name,
+                "size_bytes": st.st_size,
+                "mtime": st.st_mtime,
+            })
+    out.sort(key=lambda v: (v["day"], v["camera"]), reverse=True)
     return out
 
 
@@ -506,7 +539,7 @@ def status_page(request: Request):
 
 @app.get("/api/status")
 def api_status():
-    now = datetime.now()
+    now = datetime.now(LOCAL_TZ).replace(tzinfo=None)
     max_size_bytes = MAX_SIZE_GB * (1024 ** 3)
     max_age_seconds = MAX_AGE_DAYS * 86400
     cams = []
@@ -545,6 +578,20 @@ def api_status():
     la = os.getloadavg()
     with _events_lock:
         ev_count = len(_load_events())
+
+    videos = list_videos()
+    videos_block = None
+    if VIDEO_DIR.exists():
+        v_total = sum(v["size_bytes"] for v in videos)
+        by_cam = {}
+        for v in videos:
+            by_cam.setdefault(v["camera"], []).append({"day": v["day"], "name": v["name"], "size_bytes": v["size_bytes"]})
+        videos_block = {
+            "total_size_bytes": v_total,
+            "count": len(videos),
+            "by_camera": [{"camera": k, "items": sorted(items, key=lambda x: x["day"], reverse=True)} for k, items in sorted(by_cam.items())],
+        }
+
     return {
         "ts": now.isoformat(timespec="seconds"),
         "limits": {
@@ -567,7 +614,76 @@ def api_status():
             "size_bytes": total_size,
             "size_pct_of_limit": round(total_size / max_size_bytes * 100.0, 1),
         },
+        "videos": videos_block,
     }
+
+
+@app.get("/api/videos")
+def api_videos():
+    return list_videos()
+
+
+@app.get("/api/videos/file/{camera}/{name}")
+def api_video_file(camera: str, name: str, download: int = 0):
+    if not VIDEO_RE.match(name):
+        raise HTTPException(400, "bad name")
+    p = VIDEO_DIR / camera / name
+    if not p.exists() or not p.is_file():
+        raise HTTPException(404, "not found")
+    headers = {}
+    if download:
+        headers["Content-Disposition"] = f'attachment; filename="{name}"'
+    return FileResponse(p, media_type="video/mp4", headers=headers)
+
+
+@app.post("/api/videos/delete")
+async def api_videos_delete(req: Request):
+    body = await req.json()
+    items = body.get("items") or []
+    if not isinstance(items, list) or not items:
+        raise HTTPException(400, "items list required")
+    deleted = []
+    errors = []
+    for it in items:
+        cam = it.get("camera")
+        name = it.get("name")
+        if not cam or not name or not VIDEO_RE.match(name):
+            errors.append({"item": it, "error": "bad item"})
+            continue
+        p = VIDEO_DIR / cam / name
+        try:
+            p.unlink()
+            deleted.append({"camera": cam, "name": name})
+        except OSError as e:
+            errors.append({"item": it, "error": str(e)})
+    return {"deleted": deleted, "errors": errors}
+
+
+@app.post("/api/images/delete-day")
+async def api_images_delete_day(req: Request):
+    body = await req.json()
+    cam_name = body.get("camera")
+    day = body.get("day")
+    if not cam_name or cam_name not in CAMERA_NAMES:
+        raise HTTPException(400, f"unknown camera: {cam_name}")
+    if not day or not re.match(r"^\d{4}-\d{2}-\d{2}$", day):
+        raise HTTPException(400, "day must be YYYY-MM-DD")
+    sub = None if cam_name == DEFAULT_CAMERA else cam_name
+    frames = list_frames(sub)
+    target = [name for ts, name in frames if ts.strftime("%Y-%m-%d") == day]
+    d = camera_image_dir(sub)
+    deleted = 0
+    errors = []
+    for name in target:
+        p = d / name
+        try:
+            p.unlink()
+            with _frame_cache_lock:
+                _frame_cache.pop(str(p), None)
+            deleted += 1
+        except OSError as e:
+            errors.append({"name": name, "error": str(e)})
+    return {"camera": cam_name, "day": day, "deleted": deleted, "errors": errors}
 
 
 @app.get("/save")
