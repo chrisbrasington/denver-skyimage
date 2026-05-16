@@ -93,45 +93,115 @@ async def _count_req(request, call_next):
     return await call_next(request)
 
 
+_ENGINE_CANDIDATES = (
+    ("podman", "unix:///var/run/podman.sock"),
+    ("docker", "unix:///var/run/docker.sock"),
+)
+_engine_name = None
+
+
 def _docker():
-    global _docker_client
-    if _docker_client is None:
-        _docker_client = docker.from_env()
-    return _docker_client
+    """Connect to podman first, then docker. Cache first working client."""
+    global _docker_client, _engine_name
+    if _docker_client is not None:
+        return _docker_client
+    errors = []
+    for name, url in _ENGINE_CANDIDATES:
+        try:
+            client = docker.DockerClient(base_url=url, timeout=3)
+            client.ping()
+            _docker_client = client
+            _engine_name = name
+            return _docker_client
+        except Exception as e:
+            errors.append(f"{name}: {e}")
+    raise RuntimeError("no container runtime reachable — " + "; ".join(errors))
 
 
 PROJECT_LABEL = os.environ.get("COMPOSE_PROJECT", "denver-skyimage")
+_PROJECT_LABEL_KEYS = (
+    "com.docker.compose.project",
+    "io.podman.compose.project",
+    "PODMAN_SYSTEMD_UNIT",
+)
+
+
+def _list_project_containers(client):
+    """Return project containers across docker + podman compose label schemes.
+
+    Falls back to container-name prefix (docker compose uses `proj-svc-N`,
+    podman-compose uses `proj_svc_N`) so videogen is detectable under podman.
+    """
+    found = {}
+    for key in _PROJECT_LABEL_KEYS:
+        try:
+            for c in client.containers.list(all=True, filters={"label": f"{key}={PROJECT_LABEL}"}):
+                found[c.id] = c
+        except Exception:
+            pass
+    if found:
+        return list(found.values())
+    prefixes = (f"{PROJECT_LABEL}-", f"{PROJECT_LABEL}_")
+    for c in client.containers.list(all=True):
+        if c.name.startswith(prefixes):
+            found[c.id] = c
+    return list(found.values())
+
+
+def _stats_to_metrics(s):
+    """Extract cpu/mem from docker- or podman-compat stats. Both return 0 if shape unknown."""
+    cpu_pct = 0.0
+    mem = 0
+    mem_lim = 1
+    cpu = s.get("cpu_stats") or {}
+    pre = s.get("precpu_stats") or {}
+    if cpu and "cpu_usage" in cpu:
+        cd = cpu["cpu_usage"].get("total_usage", 0) - (pre.get("cpu_usage") or {}).get("total_usage", 0)
+        sd = cpu.get("system_cpu_usage", 0) - pre.get("system_cpu_usage", 0)
+        ncpu = cpu.get("online_cpus") or len(cpu["cpu_usage"].get("percpu_usage") or [1])
+        if sd > 0:
+            cpu_pct = (cd / sd) * ncpu * 100.0
+    mstats = s.get("memory_stats") or {}
+    if mstats:
+        mem = mstats.get("usage", 0) or 0
+        mem_lim = mstats.get("limit", 1) or 1
+    # podman docker-compat sometimes returns {"Stats":[{...}]} shape
+    pod = s.get("Stats")
+    if (not mem or not cpu_pct) and isinstance(pod, list) and pod:
+        p = pod[0]
+        cpu_pct = cpu_pct or float(p.get("CPU", 0) or 0)
+        mem = mem or int(p.get("MemUsage", 0) or 0)
+        mem_lim = mem_lim if mem_lim > 1 else int(p.get("MemLimit", 1) or 1)
+    return cpu_pct, mem, mem_lim
 
 
 def _container_stats():
+    """Return (containers, error, engine). Error non-empty if no runtime reachable."""
     out = []
     try:
-        cs = _docker().containers.list(all=True, filters={"label": f"com.docker.compose.project={PROJECT_LABEL}"})
-        for c in cs:
-            if c.status != "running":
-                out.append({"name": c.name, "status": c.status, "cpu_pct": 0.0, "mem_mb": 0.0, "mem_pct": 0.0})
-                continue
-            try:
-                s = c.stats(stream=False)
-                cpu = s["cpu_stats"]
-                pre = s["precpu_stats"]
-                cd = cpu["cpu_usage"]["total_usage"] - pre["cpu_usage"]["total_usage"]
-                sd = cpu.get("system_cpu_usage", 0) - pre.get("system_cpu_usage", 0)
-                ncpu = cpu.get("online_cpus") or len(cpu["cpu_usage"].get("percpu_usage") or [1])
-                cpu_pct = (cd / sd) * ncpu * 100.0 if sd > 0 else 0.0
-                mem = s["memory_stats"].get("usage", 0)
-                mem_lim = s["memory_stats"].get("limit", 1)
-                out.append({
-                    "name": c.name, "status": c.status,
-                    "cpu_pct": round(cpu_pct, 1),
-                    "mem_mb": round(mem / 1024 / 1024, 1),
-                    "mem_pct": round(mem / mem_lim * 100.0, 1),
-                })
-            except Exception as e:
-                out.append({"name": c.name, "status": c.status, "error": str(e)})
+        client = _docker()
+        cs = _list_project_containers(client)
     except Exception as e:
-        print(f"docker stats failed: {e}", flush=True)
-    return out
+        msg = f"container runtime unreachable ({e})"
+        print(f"docker/podman stats failed: {e}", flush=True)
+        return out, msg, None
+    for c in cs:
+        if c.status != "running":
+            out.append({"name": c.name, "status": c.status, "cpu_pct": 0.0, "mem_mb": 0.0, "mem_pct": 0.0})
+            continue
+        try:
+            s = c.stats(stream=False)
+            cpu_pct, mem, mem_lim = _stats_to_metrics(s)
+            out.append({
+                "name": c.name, "status": c.status,
+                "cpu_pct": round(cpu_pct, 1),
+                "mem_mb": round(mem / 1024 / 1024, 1),
+                "mem_pct": round(mem / mem_lim * 100.0, 1) if mem_lim else 0.0,
+            })
+        except Exception as e:
+            out.append({"name": c.name, "status": c.status, "cpu_pct": 0.0, "mem_mb": 0.0, "mem_pct": 0.0, "error": str(e)})
+    err = "" if cs else "no project containers found (checked docker + podman compose labels and name prefix)"
+    return out, err, _engine_name
 
 
 VIDEO_RE = re.compile(r"^(.+?)_(\d{4}-\d{2}-\d{2})\.mp4$")
@@ -579,7 +649,7 @@ def api_status():
     with _events_lock:
         ev_count = len(_load_events())
 
-    container_block = _container_stats()
+    container_block, containers_error, container_engine = _container_stats()
     vm = psutil.virtual_memory()
     app_mem_bytes = int(sum(c.get("mem_mb", 0) for c in container_block) * 1024 * 1024)
     app_mem_pct = round(app_mem_bytes / vm.total * 100.0, 1) if vm.total else 0.0
@@ -591,14 +661,18 @@ def api_status():
         by_cam = {}
         for v in videos:
             by_cam.setdefault(v["camera"], []).append({"day": v["day"], "name": v["name"], "size_bytes": v["size_bytes"]})
-        videogen_running = any(
-            c.get("status") == "running" and "videogen" in c.get("name", "")
-            for c in container_block
-        )
+        if containers_error:
+            videogen_running = None  # unknown — runtime not reachable
+        else:
+            videogen_running = any(
+                c.get("status") == "running" and "videogen" in c.get("name", "")
+                for c in container_block
+            )
         videos_block = {
             "total_size_bytes": v_total,
             "count": len(videos),
             "videogen_running": videogen_running,
+            "containers_error": containers_error or None,
             "naming": "{camera}_{YYYY-MM-DD}.mp4",
             "by_camera": [
                 {"camera": k, "items": sorted(items, key=lambda x: x["day"], reverse=True)}
@@ -624,6 +698,8 @@ def api_status():
         },
         "app": {"mem_pct": app_mem_pct, "mem_mb": round(app_mem_bytes / 1024 / 1024, 1), "cpu_pct": app_cpu_pct},
         "containers": container_block,
+        "containers_error": containers_error or None,
+        "container_engine": container_engine,
         "events_count": ev_count,
         "cameras": cams,
         "totals": {

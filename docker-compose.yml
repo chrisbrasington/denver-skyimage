@@ -22,7 +22,8 @@ services:
       - ./downloaded_images:/data/images:z
       - ./events:/data/events:z
       - ./videos:/data/videos:z
-      - ${CONTAINER_SOCK:-${XDG_RUNTIME_DIR:-/run/user/1000}/podman/podman.sock}:/var/run/docker.sock:ro
+      - ${PODMAN_SOCK_HOST:-${XDG_RUNTIME_DIR:-/run/user/1000}/podman/podman.sock}:/var/run/podman.sock:ro
+      - ${DOCKER_SOCK_HOST:-/var/run/docker.sock}:/var/run/docker.sock:ro
 
   videogen:
     build: ./videogen

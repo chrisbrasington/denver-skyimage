@@ -123,7 +123,7 @@
   </section>
 
   <section class="panel">
-    <h2>Containers</h2>
+    <h2>Containers <span id="container-engine" style="font-size:0.7rem;color:#788;font-weight:normal"></span></h2>
     <table>
       <thead><tr><th>Name</th><th>Status</th><th>CPU %</th><th>Mem MB</th><th>Mem %</th></tr></thead>
       <tbody id="containers-body"></tbody>
@@ -239,8 +239,15 @@ function render(d) {
 
   renderVideos(d.videos);
 
+  const engEl = document.getElementById('container-engine');
+  engEl.textContent = d.container_engine ? `(via ${d.container_engine})` : '';
   const tb = document.getElementById('containers-body');
   tb.innerHTML = '';
+  if (d.containers_error) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td colspan="5" style="color:#ff8a7a">Cannot read containers: ${d.containers_error}</td>`;
+    tb.appendChild(tr);
+  }
   d.containers.forEach(c => {
     const tr = document.createElement('tr');
     const pillCls = c.status === 'running' ? 'pill-running' : 'pill-other';
@@ -273,13 +280,21 @@ function renderVideos(v) {
   sec.style.display = '';
 
   const note = document.getElementById('videogen-note');
-  const pill = v.videogen_running
-    ? '<span class="pill-go">running</span>'
-    : '<span class="pill-stop">stopped</span>';
+  let pill, warn;
+  if (v.videogen_running === null || v.videogen_running === undefined) {
+    pill = '<span class="pill-stop" style="background:#665533;color:#ffd76a">unknown</span>';
+    warn = `<span style="color:#ffd76a">Container state unreadable${v.containers_error ? ` (${v.containers_error})` : ''} — check docker/podman socket mount.</span>`;
+  } else if (v.videogen_running) {
+    pill = '<span class="pill-go">running</span>';
+    warn = '';
+  } else {
+    pill = '<span class="pill-stop">stopped</span>';
+    warn = '<span style="color:#ff8a7a">Not running on this host — no new videos will be encoded.</span>';
+  }
   note.innerHTML = `
     The <b>videogen</b> container ${pill} auto-encodes one MP4 per camera per day at 01:00 MTN.
     Files saved as <code style="background:#1f2630;padding:0 0.3rem;border-radius:2px;">${v.naming}</code> in <code style="background:#1f2630;padding:0 0.3rem;border-radius:2px;">/data/videos/{camera}/</code>.
-    ${v.videogen_running ? '' : '<span style="color:#ff8a7a">Not running on this host — no new videos will be encoded.</span>'}
+    ${warn}
   `;
 
   document.getElementById('videos-total').textContent =
