@@ -964,8 +964,15 @@ function applyIdleReset() {
   setPlayBtn('Pause');
 }
 
+function frameReady(i) {
+  const im = preloadCache.get(frames[i].name);
+  return im && im.complete && im.naturalWidth > 0;
+}
+
 function tick() {
   if (!playing || !frames.length) return;
+  const next = idx >= rangeHi ? rangeLo : idx + 1;
+  if (!frameReady(next)) { preloadAhead(next); return; }
   if (idx >= rangeHi) {
     if (resetPending) {
       resetPending = false;
