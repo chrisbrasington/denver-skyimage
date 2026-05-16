@@ -14,6 +14,7 @@
   .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; }
   .tile { background: #161a26; border: 1px solid #222; border-radius: 6px; padding: 0.75rem 1rem; }
   .tile .n { font-size: 1.6rem; color: #ffd76a; font-variant-numeric: tabular-nums; line-height: 1.2; }
+  #t-mem { font-size: 1rem; }
   .tile .l { font-size: 0.7rem; color: #8ab4ff; text-transform: uppercase; letter-spacing: 0.05em; }
   .panel { background: #11141c; border: 1px solid #222; border-radius: 6px; padding: 0.9rem 1rem; }
   .bar { height: 14px; background: #1f2630; border-radius: 4px; overflow: hidden; }
@@ -108,7 +109,7 @@
     <div class="tile"><div class="n" id="t-requests">—</div><div class="l">Requests</div></div>
     <div class="tile"><div class="n" id="t-events">—</div><div class="l">Events</div></div>
     <div class="tile"><div class="n" id="t-cpu">—</div><div class="l">System CPU</div></div>
-    <div class="tile"><div class="n" id="t-mem">—</div><div class="l">System Memory</div></div>
+    <div class="tile"><div class="n" id="t-mem"><span style="color:#ffd76a">—</span> <span style="color:#788;font-size:0.75rem;">app</span> · <span style="color:#8ab4ff">—</span> <span style="color:#788;font-size:0.75rem;">sys</span></div><div class="l">Memory</div></div>
   </section>
 
   <section class="panel">
@@ -209,7 +210,11 @@ function render(d) {
   document.getElementById('t-requests').textContent = d.web.requests.toLocaleString();
   document.getElementById('t-events').textContent = d.events_count;
   document.getElementById('t-cpu').textContent = d.system.cpu_pct.toFixed(1) + '%';
-  document.getElementById('t-mem').textContent = d.system.mem_pct.toFixed(1) + '%';
+  const appM = d.app ? d.app.mem_pct.toFixed(1) : '—';
+  const sysM = d.system.mem_pct.toFixed(1);
+  document.getElementById('t-mem').innerHTML =
+    `<span style="color:#ffd76a">${appM}%</span> <span style="color:#788;font-size:0.75rem;">app</span> · ` +
+    `<span style="color:#8ab4ff">${sysM}%</span> <span style="color:#788;font-size:0.75rem;">sys</span>`;
 
   document.getElementById('lim-size').textContent = d.limits.max_size_gb;
   document.getElementById('lim-age').textContent = d.limits.max_age_days;
@@ -355,6 +360,7 @@ function renderVideos(v) {
     block.className = 'vid-cam-block';
     const rowsHtml = cam.rows.map(r => {
       const has = !!r.video_name;
+      const fname = r.video_name || `${cam.camera}_${r.day}.mp4`;
       const cb = has
         ? `<input type="checkbox" data-cam="${cam.camera}" data-name="${r.video_name}">`
         : '';
@@ -365,19 +371,23 @@ function renderVideos(v) {
             ? `<button class="create" data-cam="${cam.camera}" data-day="${r.day}" data-count="${r.image_count}" type="button">Create video</button>
                <button class="dl-create" data-cam="${cam.camera}" data-day="${r.day}" data-count="${r.image_count}" data-dl="1" type="button">Create &amp; download</button>`
             : '<span class="no-vid">no images, no video</span>');
+      const fileCell = has
+        ? `<code style="font-size:0.72rem;color:#aab;">${fname}</code>`
+        : `<code style="font-size:0.72rem;color:#5a6070;" title="filename if created">${fname}</code>`;
       return `
         <tr>
           <td>${cb}</td>
           <td>${r.day}</td>
           <td>${r.image_count.toLocaleString()}</td>
+          <td>${fileCell}</td>
           <td>${has ? fmtBytes(r.video_size_bytes) : '<span class="no-vid">—</span>'}</td>
           <td class="actions-cell">${actions}</td>
         </tr>`;
     }).join('');
     block.innerHTML = `
-      <h4>${cam.camera}</h4>
+      <h4>${cam.camera} <span style="font-weight:normal;color:#788;font-size:0.78rem;">(files: <code style="background:#1f2630;padding:0 0.3rem;border-radius:2px;">${cam.camera}_YYYY-MM-DD.mp4</code>)</span></h4>
       <table class="vid-table">
-        <thead><tr><th></th><th>Day</th><th>Images</th><th>Video size</th><th>Actions</th></tr></thead>
+        <thead><tr><th></th><th>Day</th><th>Images</th><th>File</th><th>Size</th><th>Actions</th></tr></thead>
         <tbody>${rowsHtml}</tbody>
       </table>`;
     tables.appendChild(block);

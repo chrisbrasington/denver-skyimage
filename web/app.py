@@ -636,6 +636,10 @@ def api_status():
         ev_count = len(_load_events())
 
     container_block = _container_stats()
+    vm = psutil.virtual_memory()
+    app_mem_bytes = int(sum(c.get("mem_mb", 0) for c in container_block) * 1024 * 1024)
+    app_mem_pct = round(app_mem_bytes / vm.total * 100.0, 1) if vm.total else 0.0
+    app_cpu_pct = round(sum(c.get("cpu_pct", 0) for c in container_block), 1)
     videos = list_videos()
     videos_block = None
     if VIDEO_DIR.exists():
@@ -680,10 +684,12 @@ def api_status():
         "system": {
             "loadavg": [round(x, 2) for x in la],
             "cpu_pct": psutil.cpu_percent(interval=None),
-            "mem_pct": psutil.virtual_memory().percent,
+            "mem_pct": vm.percent,
+            "mem_total_gb": round(vm.total / (1024 ** 3), 1),
             "disk_free_gb": round(du.free / (1024 ** 3), 1),
             "disk_total_gb": round(du.total / (1024 ** 3), 1),
         },
+        "app": {"mem_pct": app_mem_pct, "mem_mb": round(app_mem_bytes / 1024 / 1024, 1), "cpu_pct": app_cpu_pct},
         "containers": container_block,
         "events_count": ev_count,
         "cameras": cams,
