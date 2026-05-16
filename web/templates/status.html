@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Status — Denver Sky</title>
+<style>
+  body { margin: 0; background: #0b0d12; color: #e6e9ef; font-family: system-ui, sans-serif; }
+  header { padding: 0.6rem 1rem; display: flex; gap: 1rem; align-items: center; border-bottom: 1px solid #222; }
+  header a { color: #8ab4ff; text-decoration: none; }
+  header a:hover { text-decoration: underline; }
+  header a.here { color: #ffd76a; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 1rem; display: flex; flex-direction: column; gap: 1.25rem; }
+  h2 { margin: 0 0 0.5rem; font-size: 1rem; color: #8ab4ff; text-transform: uppercase; letter-spacing: 0.08em; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; }
+  .tile { background: #161a26; border: 1px solid #222; border-radius: 6px; padding: 0.75rem 1rem; }
+  .tile .n { font-size: 1.6rem; color: #ffd76a; font-variant-numeric: tabular-nums; line-height: 1.2; }
+  .tile .l { font-size: 0.7rem; color: #8ab4ff; text-transform: uppercase; letter-spacing: 0.05em; }
+  .panel { background: #11141c; border: 1px solid #222; border-radius: 6px; padding: 0.9rem 1rem; }
+  .bar { height: 14px; background: #1f2630; border-radius: 4px; overflow: hidden; }
+  .bar-fill { height: 100%; width: 0; background: #7fd17a; transition: width 0.4s ease-out, background 0.4s; }
+  .bar-row { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; margin-bottom: 0.25rem; font-size: 0.85rem; }
+  .bar-row .lbl { color: #aab; }
+  .bar-row .val { font-variant-numeric: tabular-nums; color: #e6e9ef; }
+  .age-list { display: flex; flex-direction: column; gap: 0.55rem; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 0.9rem; }
+  .card { background: #11141c; border: 1px solid #222; border-radius: 6px; padding: 0.85rem 1rem; }
+  .card h3 { margin: 0 0 0.4rem; font-size: 1rem; }
+  .tag { font-size: 0.65rem; color: #0b0d12; background: #ffd76a; padding: 0.05rem 0.35rem; border-radius: 3px; vertical-align: middle; margin-left: 0.3rem; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 0.15rem 0.6rem; font-size: 0.82rem; margin: 0.4rem 0; }
+  .kv .k { color: #8ab4ff; }
+  .kv .v { font-variant-numeric: tabular-nums; }
+  .stale { color: #ff8a7a; font-weight: 600; }
+  .day-list { margin-top: 0.5rem; font-size: 0.78rem; }
+  .day-list .row { display: flex; justify-content: space-between; border-bottom: 1px solid #1c2030; padding: 0.15rem 0; font-variant-numeric: tabular-nums; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid #222; font-variant-numeric: tabular-nums; font-size: 0.85rem; }
+  th { color: #8ab4ff; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .pill { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 10px; font-size: 0.72rem; }
+  .pill-running { background: #2d4a2d; color: #b5e0b5; }
+  .pill-other { background: #5a2a2a; color: #f0b8b8; }
+  footer { padding: 0.8rem 1rem 1.5rem; color: #788; font-size: 0.78rem; display: flex; gap: 1rem; align-items: center; justify-content: center; }
+  footer button { background: #1f2630; color: #e6e9ef; border: 1px solid #333; padding: 0.35rem 0.8rem; border-radius: 4px; cursor: pointer; font-size: 0.78rem; }
+  footer button:hover { background: #2a3340; }
+</style>
+</head>
+<body>
+<header>
+  <strong>Denver Sky</strong>
+  <a href="/">Live</a>
+  <a href="/touch">Touch</a>
+  <a href="/browse">Browse</a>
+  <a href="/events">Events</a>
+  <a href="/status" class="here">Status</a>
+</header>
+
+<div class="wrap">
+  <section class="tiles" id="tiles">
+    <div class="tile"><div class="n" id="t-uptime">—</div><div class="l">Uptime</div></div>
+    <div class="tile"><div class="n" id="t-requests">—</div><div class="l">Requests</div></div>
+    <div class="tile"><div class="n" id="t-events">—</div><div class="l">Events</div></div>
+    <div class="tile"><div class="n" id="t-cpu">—</div><div class="l">System CPU</div></div>
+  </section>
+
+  <section class="panel">
+    <h2>Total Storage</h2>
+    <div class="bar-row"><span class="lbl">Used of <span id="lim-size">10</span> GB</span><span class="val" id="storage-text">—</span></div>
+    <div class="bar"><div class="bar-fill" id="storage-fill"></div></div>
+  </section>
+
+  <section class="panel">
+    <h2>Oldest Image Age (cap <span id="lim-age">4</span>d)</h2>
+    <div class="age-list" id="age-list"></div>
+  </section>
+
+  <section>
+    <h2>Cameras</h2>
+    <div class="cards" id="cam-cards"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Containers</h2>
+    <table>
+      <thead><tr><th>Name</th><th>Status</th><th>CPU %</th><th>Mem MB</th><th>Mem %</th></tr></thead>
+      <tbody id="containers-body"></tbody>
+    </table>
+  </section>
+
+  <section class="panel">
+    <h2>System</h2>
+    <div class="kv" id="sys-kv"></div>
+  </section>
+</div>
+
+<footer>
+  <span id="updated">—</span>
+  <button onclick="load()">Refresh now</button>
+</footer>
+
+<script>
+const fmtBytes = b => {
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  if (b < 1073741824) return (b/1048576).toFixed(1) + ' MB';
+  return (b/1073741824).toFixed(2) + ' GB';
+};
+const fmtDur = s => {
+  if (s == null) return '—';
+  if (s < 60) return s + 's';
+  if (s < 3600) return Math.floor(s/60) + 'm ' + (s%60) + 's';
+  if (s < 86400) return Math.floor(s/3600) + 'h ' + Math.floor((s%3600)/60) + 'm';
+  return Math.floor(s/86400) + 'd ' + Math.floor((s%86400)/3600) + 'h';
+};
+const fmtTs = t => t ? new Date(t).toLocaleString() : '—';
+const pickColor = pct => pct >= 80 ? '#c2614e' : pct >= 60 ? '#ffd76a' : '#7fd17a';
+function setBar(fill, pct) {
+  const p = Math.min(100, Math.max(0, pct || 0));
+  fill.style.width = p + '%';
+  fill.style.background = pickColor(p);
+}
+
+function render(d) {
+  document.getElementById('t-uptime').textContent = fmtDur(d.web.uptime_seconds);
+  document.getElementById('t-requests').textContent = d.web.requests.toLocaleString();
+  document.getElementById('t-events').textContent = d.events_count;
+  document.getElementById('t-cpu').textContent = d.system.cpu_pct.toFixed(1) + '%';
+
+  document.getElementById('lim-size').textContent = d.limits.max_size_gb;
+  document.getElementById('lim-age').textContent = d.limits.max_age_days;
+
+  const sf = document.getElementById('storage-fill');
+  setBar(sf, d.totals.size_pct_of_limit);
+  document.getElementById('storage-text').textContent =
+    fmtBytes(d.totals.size_bytes) + ' / ' + d.limits.max_size_gb + ' GB (' + d.totals.size_pct_of_limit + '%)';
+
+  const ageList = document.getElementById('age-list');
+  ageList.innerHTML = '';
+  d.cameras.forEach(c => {
+    const wrap = document.createElement('div');
+    wrap.innerHTML = `
+      <div class="bar-row">
+        <span class="lbl">${c.name}${c.is_default ? ' <span class="tag">default</span>' : ''}</span>
+        <span class="val">${fmtDur(c.oldest_age_seconds)} / ${d.limits.max_age_days}d (${c.age_pct_of_limit}%)</span>
+      </div>
+      <div class="bar"><div class="bar-fill"></div></div>`;
+    ageList.appendChild(wrap);
+    setBar(wrap.querySelector('.bar-fill'), c.age_pct_of_limit);
+  });
+
+  const cards = document.getElementById('cam-cards');
+  cards.innerHTML = '';
+  d.cameras.forEach(c => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    const staleCls = c.cadence_stale ? 'stale' : '';
+    const days = (c.per_day || []).slice(0, 7).map(r =>
+      `<div class="row"><span>${r.day}</span><span>${r.count.toLocaleString()}</span></div>`
+    ).join('');
+    card.innerHTML = `
+      <h3>${c.name}${c.is_default ? ' <span class="tag">default</span>' : ''}</h3>
+      <div class="kv">
+        <span class="k">Count</span><span class="v">${c.count.toLocaleString()}</span>
+        <span class="k">Size</span><span class="v">${fmtBytes(c.size_bytes)} (${c.size_pct_of_limit}%)</span>
+        <span class="k">Oldest</span><span class="v">${fmtTs(c.oldest_ts)}</span>
+        <span class="k">Newest</span><span class="v">${fmtTs(c.newest_ts)}</span>
+        <span class="k">Last image</span><span class="v ${staleCls}">${fmtDur(c.since_last_seconds)} ago${c.cadence_stale ? ' (stale)' : ''}</span>
+      </div>
+      <div class="bar"><div class="bar-fill"></div></div>
+      <div class="day-list">${days}</div>`;
+    cards.appendChild(card);
+    setBar(card.querySelector('.bar-fill'), c.size_pct_of_limit);
+  });
+
+  const tb = document.getElementById('containers-body');
+  tb.innerHTML = '';
+  d.containers.forEach(c => {
+    const tr = document.createElement('tr');
+    const pillCls = c.status === 'running' ? 'pill-running' : 'pill-other';
+    if (c.error) {
+      tr.innerHTML = `<td>${c.name}</td><td><span class="pill ${pillCls}">${c.status}</span></td><td colspan="3" style="color:#ff8a7a">${c.error}</td>`;
+    } else {
+      tr.innerHTML = `
+        <td>${c.name}</td>
+        <td><span class="pill ${pillCls}">${c.status}</span></td>
+        <td>${c.cpu_pct.toFixed(1)}</td>
+        <td>${c.mem_mb.toFixed(1)}</td>
+        <td>${c.mem_pct.toFixed(1)}</td>`;
+    }
+    tb.appendChild(tr);
+  });
+
+  const sys = d.system;
+  document.getElementById('sys-kv').innerHTML = `
+    <span class="k">Load (1/5/15m)</span><span class="v">${sys.loadavg.join(' / ')}</span>
+    <span class="k">CPU</span><span class="v">${sys.cpu_pct.toFixed(1)}%</span>
+    <span class="k">Memory</span><span class="v">${sys.mem_pct.toFixed(1)}%</span>
+    <span class="k">Disk (volume)</span><span class="v">${sys.disk_free_gb} GB free / ${sys.disk_total_gb} GB total</span>`;
+
+  document.getElementById('updated').textContent = 'Updated ' + new Date(d.ts).toLocaleTimeString() + ' — refreshes every 30s';
+}
+
+async function load() {
+  try {
+    const r = await fetch('/api/status');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    render(await r.json());
+  } catch (e) {
+    console.warn('status load failed', e);
+    document.getElementById('updated').textContent = 'Load failed: ' + e.message;
+  }
+}
+load();
+setInterval(load, 30000);
+</script>
+</body>
+</html>

@@ -14,10 +14,14 @@ services:
     restart: unless-stopped
     ports:
       - "${APP_PORT:-8000}:8000"
+    security_opt:
+      - label=disable
     volumes:
       - ./cameras.json:/config/cameras.json:ro,z
+      - ./config.yaml:/config/config.yaml:ro,z
       - ./downloaded_images:/data/images:z
       - ./events:/data/events:z
+      - ${XDG_RUNTIME_DIR:-/run/user/1000}/podman/podman.sock:/var/run/docker.sock:ro
 
   videogen:
     build: ./videogen

@@ -1,8 +1,10 @@
 import json
 import os
 import re
+import shutil
 import tempfile
 import threading
+import time
 import uuid
 from collections import OrderedDict
 from datetime import datetime
@@ -10,6 +12,9 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import cv2
+import docker
+import psutil
+import yaml
 from astral import LocationInfo
 from astral.sun import sun
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -21,6 +26,10 @@ IMAGE_DIR = Path(os.environ.get("IMAGE_DIR", "/data/images"))
 EVENTS_DIR = Path(os.environ.get("EVENTS_DIR", "/data/events"))
 EVENTS_FILE = EVENTS_DIR / "events.json"
 CAMERAS_PATH = os.environ.get("CAMERAS_PATH", "/config/cameras.json")
+CONFIG_PATH = os.environ.get("CONFIG_PATH", "/config/config.yaml")
+APP_START_TS = time.time()
+_request_count = 0
+_docker_client = None
 DENVER = LocationInfo("Denver", "USA", "America/Denver", 39.7392, -104.9903)
 UTC_TZ = ZoneInfo("UTC")
 LOCAL_TZ = ZoneInfo("America/Denver")
@@ -37,9 +46,22 @@ def load_cameras():
         return [{"name": "north"}]
 
 
+def load_config():
+    try:
+        with open(CONFIG_PATH) as f:
+            return yaml.safe_load(f) or {}
+    except Exception as e:
+        print(f"config.yaml load failed: {e}", flush=True)
+        return {}
+
+
 CAMERAS = load_cameras()
 CAMERA_NAMES = [c["name"] for c in CAMERAS]
 DEFAULT_CAMERA = CAMERA_NAMES[0] if CAMERA_NAMES else "north"
+CONFIG = load_config()
+MAX_AGE_DAYS = float(CONFIG.get("max_age_days", 4))
+MAX_SIZE_GB = float(CONFIG.get("max_size_gb", 10))
+CHECK_INTERVAL = int(CONFIG.get("check_interval_seconds", 30))
 
 _events_lock = threading.Lock()
 
@@ -61,6 +83,66 @@ def _save_events(events):
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static")
+
+
+@app.middleware("http")
+async def _count_req(request, call_next):
+    global _request_count
+    _request_count += 1
+    return await call_next(request)
+
+
+def _docker():
+    global _docker_client
+    if _docker_client is None:
+        _docker_client = docker.from_env()
+    return _docker_client
+
+
+PROJECT_LABEL = os.environ.get("COMPOSE_PROJECT", "denver-skyimage")
+
+
+def _container_stats():
+    out = []
+    try:
+        cs = _docker().containers.list(all=True, filters={"label": f"com.docker.compose.project={PROJECT_LABEL}"})
+        for c in cs:
+            if c.status != "running":
+                out.append({"name": c.name, "status": c.status, "cpu_pct": 0.0, "mem_mb": 0.0, "mem_pct": 0.0})
+                continue
+            try:
+                s = c.stats(stream=False)
+                cpu = s["cpu_stats"]
+                pre = s["precpu_stats"]
+                cd = cpu["cpu_usage"]["total_usage"] - pre["cpu_usage"]["total_usage"]
+                sd = cpu.get("system_cpu_usage", 0) - pre.get("system_cpu_usage", 0)
+                ncpu = cpu.get("online_cpus") or len(cpu["cpu_usage"].get("percpu_usage") or [1])
+                cpu_pct = (cd / sd) * ncpu * 100.0 if sd > 0 else 0.0
+                mem = s["memory_stats"].get("usage", 0)
+                mem_lim = s["memory_stats"].get("limit", 1)
+                out.append({
+                    "name": c.name, "status": c.status,
+                    "cpu_pct": round(cpu_pct, 1),
+                    "mem_mb": round(mem / 1024 / 1024, 1),
+                    "mem_pct": round(mem / mem_lim * 100.0, 1),
+                })
+            except Exception as e:
+                out.append({"name": c.name, "status": c.status, "error": str(e)})
+    except Exception as e:
+        print(f"docker stats failed: {e}", flush=True)
+    return out
+
+
+def _dir_size(p: Path):
+    total = 0
+    if p.exists():
+        for f in p.iterdir():
+            if f.is_file() and TIMESTAMP_RE.match(f.name):
+                try:
+                    total += f.stat().st_size
+                except OSError:
+                    pass
+    return total
 
 
 _FRAME_CACHE_MAX = int(os.environ.get("FRAME_CACHE_MAX", "2000"))
@@ -392,6 +474,77 @@ def api_delete_events(camera: str | None = None, cam: str | None = None):
         deleted = len(events) - len(kept)
         _save_events(kept)
     return {"deleted": deleted}
+
+
+@app.get("/status", response_class=HTMLResponse)
+def status_page(request: Request):
+    return TEMPLATES.TemplateResponse(request, "status.html")
+
+
+@app.get("/api/status")
+def api_status():
+    now = datetime.now()
+    max_size_bytes = MAX_SIZE_GB * (1024 ** 3)
+    max_age_seconds = MAX_AGE_DAYS * 86400
+    cams = []
+    total_size = 0
+    for i, c in enumerate(CAMERAS):
+        sub = None if i == 0 else c["name"]
+        d = camera_image_dir(sub)
+        frames = list_frames(sub)
+        size = _dir_size(d)
+        total_size += size
+        per_day = {}
+        for ts, _ in frames:
+            k = ts.strftime("%Y-%m-%d")
+            per_day[k] = per_day.get(k, 0) + 1
+        oldest = frames[0][0] if frames else None
+        newest = frames[-1][0] if frames else None
+        age_s = (now - oldest).total_seconds() if oldest else 0
+        since_last = (now - newest).total_seconds() if newest else None
+        cams.append({
+            "name": c["name"], "is_default": i == 0,
+            "count": len(frames),
+            "size_bytes": size,
+            "size_pct_of_limit": round(size / max_size_bytes * 100.0, 1),
+            "oldest_ts": oldest.isoformat() if oldest else None,
+            "oldest_age_seconds": round(age_s),
+            "age_pct_of_limit": round(age_s / max_age_seconds * 100.0, 1) if oldest else 0,
+            "newest_ts": newest.isoformat() if newest else None,
+            "since_last_seconds": round(since_last) if since_last is not None else None,
+            "cadence_stale": (since_last is not None and since_last > 2 * CHECK_INTERVAL),
+            "per_day": sorted(
+                [{"day": k, "count": v} for k, v in per_day.items()],
+                key=lambda x: x["day"], reverse=True,
+            ),
+        })
+    du = shutil.disk_usage(str(IMAGE_DIR))
+    la = os.getloadavg()
+    with _events_lock:
+        ev_count = len(_load_events())
+    return {
+        "ts": now.isoformat(timespec="seconds"),
+        "limits": {
+            "max_age_days": MAX_AGE_DAYS,
+            "max_size_gb": MAX_SIZE_GB,
+            "check_interval_seconds": CHECK_INTERVAL,
+        },
+        "web": {"uptime_seconds": round(time.time() - APP_START_TS), "requests": _request_count},
+        "system": {
+            "loadavg": [round(x, 2) for x in la],
+            "cpu_pct": psutil.cpu_percent(interval=None),
+            "mem_pct": psutil.virtual_memory().percent,
+            "disk_free_gb": round(du.free / (1024 ** 3), 1),
+            "disk_total_gb": round(du.total / (1024 ** 3), 1),
+        },
+        "containers": _container_stats(),
+        "events_count": ev_count,
+        "cameras": cams,
+        "totals": {
+            "size_bytes": total_size,
+            "size_pct_of_limit": round(total_size / max_size_bytes * 100.0, 1),
+        },
+    }
 
 
 @app.get("/save")
