@@ -11,5 +11,7 @@ fi
 git pull
 $ENGINE compose build --no-cache capture web
 $ENGINE compose up -d --force-recreate capture web
-$ENGINE system prune -af
+if [ "$(hostname)" != "valhalla" ]; then
+  $ENGINE system prune -af
+fi
 $ENGINE compose ps

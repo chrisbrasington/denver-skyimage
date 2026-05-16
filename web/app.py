@@ -2,7 +2,6 @@ import json
 import os
 import re
 import shutil
-import subprocess
 import tempfile
 import threading
 import time
@@ -136,61 +135,6 @@ def _container_stats():
 
 
 VIDEO_RE = re.compile(r"^(.+?)_(\d{4}-\d{2}-\d{2})\.mp4$")
-VIDEO_FPS = int(os.environ.get("VIDEO_FPS", "10"))
-
-
-def _encode_day(camera: str, day: str):
-    """Encode given local-date day for a camera. Returns (output_path, frame_count) on success or raises HTTPException."""
-    if not re.match(r"^\d{4}-\d{2}-\d{2}$", day):
-        raise HTTPException(400, "day must be YYYY-MM-DD")
-    if camera not in CAMERA_NAMES:
-        raise HTTPException(404, f"unknown camera: {camera}")
-    sub = None if camera == DEFAULT_CAMERA else camera
-    src_dir = camera_image_dir(sub)
-    frames = [(ts, src_dir / name) for ts, name in list_frames(sub) if ts.strftime("%Y-%m-%d") == day]
-    if not frames:
-        raise HTTPException(404, f"no frames for {camera} on {day}")
-
-    out_dir = VIDEO_DIR / camera
-    out_dir.mkdir(parents=True, exist_ok=True)
-    fname = f"{camera}_{day}.mp4"
-    out_path = out_dir / fname
-    tmp = out_path.with_suffix(".mp4.tmp")
-    if tmp.exists():
-        tmp.unlink()
-
-    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as listf:
-        list_path = Path(listf.name)
-        for _, p in frames:
-            esc = str(p).replace("'", "'\\''")
-            listf.write(f"file '{esc}'\n")
-
-    cmd = [
-        "ffmpeg", "-y", "-hide_banner", "-loglevel", "warning",
-        "-r", str(VIDEO_FPS),
-        "-f", "concat", "-safe", "0",
-        "-i", str(list_path),
-        "-c:v", "libx264", "-preset", "slow", "-tune", "film",
-        "-crf", "22", "-pix_fmt", "yuv420p",
-        "-movflags", "+faststart",
-        "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2",
-        "-f", "mp4", str(tmp),
-    ]
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
-    finally:
-        try:
-            list_path.unlink()
-        except OSError:
-            pass
-
-    if result.returncode != 0 or not tmp.exists():
-        if tmp.exists():
-            tmp.unlink()
-        raise HTTPException(500, f"ffmpeg failed rc={result.returncode}: {result.stderr.strip()[:500]}")
-
-    tmp.replace(out_path)
-    return out_path, len(frames)
 
 
 def list_videos():
@@ -644,23 +588,9 @@ def api_status():
     videos_block = None
     if VIDEO_DIR.exists():
         v_total = sum(v["size_bytes"] for v in videos)
-        vid_by_key = {(v["camera"], v["day"]): v for v in videos}
-        per_cam_rows = []
-        for c in cams:
-            cam_name = c["name"]
-            img_days = {row["day"]: row["count"] for row in c["per_day"]}
-            vid_days = {v["day"]: v for v in videos if v["camera"] == cam_name}
-            all_days = sorted(set(img_days.keys()) | set(vid_days.keys()), reverse=True)
-            rows = []
-            for day in all_days:
-                v = vid_days.get(day)
-                rows.append({
-                    "day": day,
-                    "image_count": img_days.get(day, 0),
-                    "video_name": v["name"] if v else None,
-                    "video_size_bytes": v["size_bytes"] if v else 0,
-                })
-            per_cam_rows.append({"camera": cam_name, "rows": rows})
+        by_cam = {}
+        for v in videos:
+            by_cam.setdefault(v["camera"], []).append({"day": v["day"], "name": v["name"], "size_bytes": v["size_bytes"]})
         videogen_running = any(
             c.get("status") == "running" and "videogen" in c.get("name", "")
             for c in container_block
@@ -670,7 +600,10 @@ def api_status():
             "count": len(videos),
             "videogen_running": videogen_running,
             "naming": "{camera}_{YYYY-MM-DD}.mp4",
-            "by_camera": per_cam_rows,
+            "by_camera": [
+                {"camera": k, "items": sorted(items, key=lambda x: x["day"], reverse=True)}
+                for k, items in sorted(by_cam.items())
+            ],
         }
 
     return {
@@ -717,26 +650,6 @@ def api_video_file(camera: str, name: str, download: int = 0):
     if download:
         headers["Content-Disposition"] = f'attachment; filename="{name}"'
     return FileResponse(p, media_type="video/mp4", headers=headers)
-
-
-@app.post("/api/videos/create")
-async def api_videos_create(req: Request):
-    body = await req.json()
-    camera = body.get("camera")
-    day = body.get("day")
-    out_path, frame_count = _encode_day(camera, day)
-    st = out_path.stat()
-    return {"camera": camera, "day": day, "name": out_path.name, "size_bytes": st.st_size, "frames": frame_count}
-
-
-@app.get("/api/videos/create-download")
-def api_videos_create_download(camera: str, day: str):
-    out_path, _ = _encode_day(camera, day)
-    return FileResponse(
-        out_path,
-        media_type="video/mp4",
-        headers={"Content-Disposition": f'attachment; filename="{out_path.name}"'},
-    )
 
 
 @app.post("/api/videos/delete")
