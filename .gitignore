@@ -6,3 +6,4 @@ pullvideo.ps1
 sample
 events
 *.log
+__pycache__
