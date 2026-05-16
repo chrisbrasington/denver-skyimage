@@ -1,0 +1,112 @@
+CACHING PROXY NOTES — if/when this app needs to serve many concurrent users
+===========================================================================
+
+CURRENT STATE
+-------------
+- Image files are served directly by the FastAPI app via /image/{name}.
+- Each image now has: Cache-Control: public, max-age=31536000, immutable
+- Filenames are timestamp-keyed, so the content for a given URL never changes.
+- Browsers cache aggressively. Each client only downloads each frame once.
+
+WHY THIS IS FINE TODAY
+----------------------
+- Internal use, low concurrent user count.
+- Per-client caching covers it. The app machine handles the load easily.
+- Bandwidth scales linearly with viewers (each client = one full download
+  pass through the visible range, then served from local browser cache).
+
+
+WHEN TO ADD A CACHING PROXY
+---------------------------
+Consider it when any of these are true:
+- Hundreds or thousands of concurrent viewers (public exhibit, website
+  embed, marketing push).
+- App machine starts pegging CPU or saturating uplink during peak.
+- You see repeated identical /image/ requests from different IPs and want
+  to offload them.
+- You want to put the site behind a public domain with TLS termination
+  and DDoS protection anyway.
+
+
+WHAT A CACHING PROXY DOES
+-------------------------
+A proxy sits between users and the app. It stores responses to GET
+requests and serves repeat requests from its own storage without ever
+hitting the app. Because our images already send
+"Cache-Control: immutable", any proxy will cache them efficiently and
+indefinitely — no extra config needed on the app side.
+
+Flow with a proxy:
+    User 1 → Proxy (miss) → App (serves image) → Proxy stores → User 1
+    User 2 → Proxy (HIT, served from proxy memory/disk)        → User 2
+    User 3 → Proxy (HIT)                                       → User 3
+    ...
+
+The app only sees one request per unique frame instead of one per
+client. CPU, bandwidth, and file I/O on the app machine drop sharply.
+
+
+OPTIONS — EASIEST TO MOST INVOLVED
+----------------------------------
+
+1. Cloudflare (free tier, easiest)
+   - Point the domain at Cloudflare, set proxy ON for the record.
+   - Page Rule or Cache Rule: "Cache Everything" for /image/*.
+   - Cloudflare honors our immutable header; images cache at the edge
+     globally. Free tier is plenty for museum-scale traffic.
+   - TLS + DDoS protection bundled.
+   - No changes needed on our server.
+
+2. nginx as a reverse proxy on the same machine (or in front of it)
+   - Install nginx, point it at the FastAPI app (e.g. 127.0.0.1:8000).
+   - Enable proxy_cache for /image/.
+     Example snippet:
+         proxy_cache_path /var/cache/nginx/sky levels=1:2
+             keys_zone=sky:50m max_size=20g inactive=30d use_temp_path=off;
+         location /image/ {
+             proxy_pass http://127.0.0.1:8000;
+             proxy_cache sky;
+             proxy_cache_valid 200 30d;
+             proxy_cache_use_stale error timeout updating;
+             add_header X-Cache $upstream_cache_status;
+         }
+   - Disk-based cache on the same box. Single point of failure but fast.
+   - Good if you can't or don't want a third-party CDN.
+
+3. Varnish
+   - Purpose-built HTTP cache. Higher throughput than nginx for cache
+     hits. Usually overkill for this scale, but mentioned for
+     completeness.
+
+4. CDN like Fastly, AWS CloudFront, Bunny.net
+   - Similar to Cloudflare but paid, with more knobs. Use only if you
+     have a specific reason (geographic distribution, contractual
+     requirements, integration with existing cloud infra).
+
+
+THINGS TO KNOW BEFORE ADDING A PROXY
+------------------------------------
+- The /api/* endpoints should NOT be cached. They return live data
+  (latest frame list, sun times, events). Scope cache rules to /image/
+  only, or set short max-age on /api/ responses.
+- The HTML pages (/touch, /live, /camera/.../last-hour) should NOT be
+  aggressively cached either — they reference templates that may change
+  when we deploy. Either skip caching for HTML or use short TTL with
+  ETag.
+- If a frame file is ever deleted on disk (cleanup of old captures),
+  the proxy may still serve a stale 200 until it expires. Acceptable
+  because frame filenames don't get reused.
+- Delete endpoint (DELETE /image/{name}) bypasses the proxy. After a
+  deletion the proxy still has the file. Either purge the cache entry
+  on delete, or live with the eventual expiry. For our use case
+  (max_age_days cleanup), it's fine — the URL will simply 404 from
+  the proxy too eventually.
+
+
+DECISION TRIGGER
+----------------
+Don't add this preemptively. Add it the first time the app machine
+shows real load symptoms under live traffic, or when you put the site
+on a public domain. Cloudflare in front is almost always the
+right first move because it's free, fast, and changes nothing on the
+app itself.
