@@ -22,6 +22,11 @@
   .bar-row { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; margin-bottom: 0.25rem; font-size: 0.85rem; }
   .bar-row .lbl { color: #aab; }
   .bar-row .val { font-variant-numeric: tabular-nums; color: #e6e9ef; }
+  .stack-bar { height: 18px; background: #1f2630; border-radius: 4px; overflow: hidden; display: flex; }
+  .stack-bar .seg { height: 100%; }
+  .stack-legend { display: flex; flex-wrap: wrap; gap: 0.6rem 1rem; margin-top: 0.45rem; font-size: 0.78rem; color: #aab; }
+  .stack-legend .item { display: flex; align-items: center; gap: 0.35rem; }
+  .stack-legend .sw { width: 10px; height: 10px; border-radius: 2px; display: inline-block; border: 1px solid #0006; }
   .age-list { display: flex; flex-direction: column; gap: 0.55rem; }
   .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 0.9rem; }
   .card { background: #11141c; border: 1px solid #222; border-radius: 6px; padding: 0.85rem 1rem; }
@@ -95,6 +100,13 @@
 
   <section class="panel">
     <h2>Total Storage</h2>
+    <div class="bar-row"><span class="lbl">Disk used</span><span class="val" id="ts-text">—</span></div>
+    <div class="stack-bar" id="ts-stack"></div>
+    <div class="stack-legend" id="ts-legend"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Image Storage</h2>
     <div class="bar-row"><span class="lbl">Used of <span id="lim-size">10</span> GB</span><span class="val" id="storage-text">—</span></div>
     <div class="bar"><div class="bar-fill" id="storage-fill"></div></div>
   </section>
@@ -113,7 +125,9 @@
     <h2>Videos</h2>
     <div id="videogen-note" style="font-size:0.82rem;line-height:1.4;color:#aab;margin-bottom:0.5rem;"></div>
     <div class="bar-row"><span class="lbl">Storage</span><span class="val" id="videos-total">—</span></div>
-    <div class="actions-row">
+    <div class="bar-row"><span class="lbl">Share of disk in use</span><span class="val" id="videos-share-text">—</span></div>
+    <div class="bar"><div class="bar-fill" id="videos-share-fill"></div></div>
+    <div class="actions-row" style="margin-top:0.6rem;">
       <button id="vid-select-all" type="button">Select all</button>
       <button id="vid-clear" type="button">Clear</button>
       <button id="vid-delete" type="button" class="danger" disabled>Delete selected</button>
@@ -196,6 +210,8 @@ function render(d) {
   document.getElementById('storage-text').textContent =
     fmtBytes(d.totals.size_bytes) + ' / ' + d.limits.max_size_gb + ' GB (' + d.totals.size_pct_of_limit + '%)';
 
+  renderTotalStorage(d);
+
   const ageList = document.getElementById('age-list');
   ageList.innerHTML = '';
   d.cameras.forEach(c => {
@@ -274,6 +290,56 @@ function render(d) {
   document.getElementById('updated').textContent = 'Updated ' + new Date(d.ts).toLocaleTimeString() + ' — refreshes every 30s';
 }
 
+const CAM_PALETTE = ['#7fd17a','#8ab4ff','#c79bff','#ffb47a','#ff8a7a','#5ed3c8'];
+const COLOR_VIDEOS = '#ffd76a';
+const COLOR_OTHER = '#506070';
+const COLOR_FREE = '#262d39';
+
+function renderTotalStorage(d) {
+  const sys = d.system || {};
+  const total = sys.disk_total_bytes || 0;
+  const used = sys.disk_used_bytes || 0;
+  const free = Math.max(0, total - used);
+  const cams = (d.cameras || []).map((c, i) => ({
+    label: c.name + ' images', bytes: c.size_bytes || 0, color: CAM_PALETTE[i % CAM_PALETTE.length],
+  }));
+  const videoBytes = d.videos ? (d.videos.total_size_bytes || 0) : 0;
+  const sumKnown = cams.reduce((s, c) => s + c.bytes, 0) + videoBytes;
+  const otherBytes = Math.max(0, used - sumKnown);
+  const segs = [
+    ...cams,
+    { label: 'videos', bytes: videoBytes, color: COLOR_VIDEOS },
+    { label: 'other', bytes: otherBytes, color: COLOR_OTHER },
+    { label: 'free', bytes: free, color: COLOR_FREE },
+  ];
+
+  const stack = document.getElementById('ts-stack');
+  stack.innerHTML = '';
+  segs.forEach(s => {
+    if (s.bytes <= 0 || total <= 0) return;
+    const el = document.createElement('div');
+    el.className = 'seg';
+    el.style.background = s.color;
+    el.style.width = (s.bytes / total * 100).toFixed(3) + '%';
+    el.title = `${s.label}: ${fmtBytes(s.bytes)} (${(s.bytes/total*100).toFixed(1)}%)`;
+    stack.appendChild(el);
+  });
+
+  const usedPct = total ? (used / total * 100).toFixed(1) : '0';
+  document.getElementById('ts-text').textContent =
+    fmtBytes(used) + ' / ' + fmtBytes(total) + ' (' + usedPct + '%)';
+
+  const lg = document.getElementById('ts-legend');
+  lg.innerHTML = '';
+  segs.forEach(s => {
+    const pct = total ? (s.bytes / total * 100).toFixed(1) : '0';
+    const it = document.createElement('span');
+    it.className = 'item';
+    it.innerHTML = `<span class="sw" style="background:${s.color}"></span>${s.label}: ${fmtBytes(s.bytes)} (${pct}%)`;
+    lg.appendChild(it);
+  });
+}
+
 function renderVideos(v) {
   const sec = document.getElementById('videos-section');
   if (!v) { sec.style.display = 'none'; return; }
@@ -299,6 +365,16 @@ function renderVideos(v) {
 
   document.getElementById('videos-total').textContent =
     fmtBytes(v.total_size_bytes) + ' across ' + v.count + ' file' + (v.count === 1 ? '' : 's');
+
+  const sys = _latest?.system || {};
+  const diskUsed = sys.disk_used_bytes || 0;
+  const diskTotal = sys.disk_total_bytes || 0;
+  const sharePct = diskUsed > 0 ? (v.total_size_bytes / diskUsed) * 100 : 0;
+  const shareFill = document.getElementById('videos-share-fill');
+  shareFill.style.background = '#8ab4ff';
+  shareFill.style.width = Math.min(100, sharePct).toFixed(1) + '%';
+  document.getElementById('videos-share-text').textContent =
+    fmtBytes(v.total_size_bytes) + ' of ' + fmtBytes(diskUsed) + ' used / ' + fmtBytes(diskTotal) + ' total (' + sharePct.toFixed(1) + '%)';
 
   const list = document.getElementById('video-list');
   list.innerHTML = '';

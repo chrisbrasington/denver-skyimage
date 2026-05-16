@@ -695,6 +695,8 @@ def api_status():
             "mem_total_gb": round(vm.total / (1024 ** 3), 1),
             "disk_free_gb": round(du.free / (1024 ** 3), 1),
             "disk_total_gb": round(du.total / (1024 ** 3), 1),
+            "disk_used_bytes": du.total - du.free,
+            "disk_total_bytes": du.total,
         },
         "app": {"mem_pct": app_mem_pct, "mem_mb": round(app_mem_bytes / 1024 / 1024, 1), "cpu_pct": app_cpu_pct},
         "containers": container_block,
