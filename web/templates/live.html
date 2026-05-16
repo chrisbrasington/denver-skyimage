@@ -35,6 +35,9 @@
   .stage img { max-width: 100%; max-height: 100%; box-shadow: 0 0 30px #000; }
   .stage:fullscreen { padding: 0; }
   .stage:fullscreen img { max-height: 100vh; max-width: 100vw; box-shadow: none; }
+  .img-loader { position: absolute; bottom: 1.25rem; right: 1.25rem; width: 36px; height: 36px; border-radius: 50%; border: 4px solid rgba(255,255,255,0.18); border-top-color: #ffd76a; animation: imgSpin 0.6s linear infinite; opacity: 0; transition: opacity 80ms ease-out; pointer-events: none; z-index: 80; }
+  .img-loader.show { opacity: 0.95; }
+  @keyframes imgSpin { to { transform: rotate(360deg); } }
 
   .bottombar { background: #0b0d12; border-top: 2px solid #222; padding: 1.25rem 1.5rem 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
   .row { display: flex; gap: 1.25rem; align-items: center; }
@@ -98,6 +101,7 @@
   <div class="sidebar" id="rangePresets"></div>
   <div class="stage" id="stage">
   <img id="frame" alt="sky">
+  <div class="img-loader" id="imgLoader"></div>
   {% if touch_mode %}
   <div class="time-label" aria-hidden="true">
     <span class="descriptor" id="timeDescriptor">--</span>
@@ -188,6 +192,8 @@ let fsTimer = null;
 let presetActive = false;
 
 const img = document.getElementById('frame');
+const imgLoader = document.getElementById('imgLoader');
+function setLoading(on) { if (imgLoader) imgLoader.classList.toggle('show', !!on); }
 const stage = document.getElementById('stage');
 const tsLabel = document.getElementById('tsLabel');
 const playBtn = document.getElementById('playBtn');
@@ -874,12 +880,17 @@ function show(i) {
   idx = Math.max(rangeLo, Math.min(rangeHi, i));
   const f = frames[idx];
   img.src = imgUrl(f.name);
+  if (img.complete && img.naturalWidth > 0) setLoading(false);
+  else setLoading(true);
   tsLabel.textContent = fmtTsHuman(f.ts);
   renderThumbs();
   updateTimeLabel(f.ts);
   renderActiveEvents();
   preloadAhead(idx + 1);
 }
+
+img.addEventListener('load', () => setLoading(false));
+img.addEventListener('error', () => setLoading(false));
 
 function findAnchorFor(day, kind) {
   const sun = sunTimes[day];
@@ -926,7 +937,7 @@ function frameReady(i) {
 function tick() {
   if (!playing || !frames.length) return;
   const next = idx >= rangeHi ? rangeLo : idx + 1;
-  if (!frameReady(next)) { preloadAhead(next); return; }
+  if (!frameReady(next)) { setLoading(true); preloadAhead(next); return; }
   if (idx >= rangeHi) {
     if (resetPending) {
       resetPending = false;
