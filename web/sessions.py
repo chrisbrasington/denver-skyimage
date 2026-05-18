@@ -37,6 +37,7 @@ class TouchSession:
     camera: Optional[str] = None
     current_frame: Optional[str] = None
     current_ts: Optional[str] = None
+    current_preview: bool = False
     range_lo_ts: Optional[str] = None
     range_hi_ts: Optional[str] = None
     playing: bool = True
@@ -128,6 +129,10 @@ class SessionStore:
                 t.camera = payload.get("camera")
             if "playing" in payload:
                 t.playing = bool(payload.get("playing"))
+            if "preview" in payload:
+                t.current_preview = bool(payload.get("preview"))
+            else:
+                t.current_preview = False
             if "range_lo_ts" in payload:
                 t.range_lo_ts = payload.get("range_lo_ts")
             if "range_hi_ts" in payload:
@@ -139,6 +144,7 @@ class SessionStore:
                     "frame": t.current_frame,
                     "camera": t.camera,
                     "ts": t.current_ts,
+                    "preview": t.current_preview,
                 })
             return True, tv is not None
 
@@ -212,6 +218,7 @@ class SessionStore:
                 "camera": touch.camera,
                 "frame": touch.current_frame,
                 "ts": touch.current_ts,
+                "preview": touch.current_preview,
             })
             if touch.current_frame:
                 _fanout(target_tv, {
@@ -219,6 +226,7 @@ class SessionStore:
                     "frame": touch.current_frame,
                     "camera": touch.camera,
                     "ts": touch.current_ts,
+                    "preview": touch.current_preview,
                 })
             return target_tv, None
 
@@ -327,6 +335,7 @@ async def sse_event_generator(tv_id: str, request, store: "SessionStore"):
                 "frame": touch.current_frame,
                 "camera": touch.camera,
                 "ts": touch.current_ts,
+                "preview": touch.current_preview,
             })
 
     while True:

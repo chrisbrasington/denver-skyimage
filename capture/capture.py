@@ -14,6 +14,16 @@ CONFIG_PATH = os.environ.get("CONFIG_PATH", "/config/config.yaml")
 CAMERAS_PATH = os.environ.get("CAMERAS_PATH", "/config/cameras.json")
 IMAGE_DIR = Path(os.environ.get("IMAGE_DIR", "/data/images"))
 TIMESTAMP_RE = re.compile(r"^(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})\.jpg$")
+THUMB_DIR_NAME = "thumbs"
+
+
+def _drop_thumb(source: Path):
+    t = source.parent / THUMB_DIR_NAME / source.name
+    if t.exists():
+        try:
+            t.unlink()
+        except OSError as e:
+            print(f"thumb unlink fail {t}: {e}", flush=True)
 
 
 def load_config():
@@ -88,6 +98,7 @@ def prune(target_dir, max_age_days, max_size_gb, label):
         if ts < cutoff:
             try:
                 p.unlink()
+                _drop_thumb(p)
                 removed_age += 1
             except OSError as e:
                 print(f"unlink fail {p}: {e}", flush=True)
@@ -104,6 +115,7 @@ def prune(target_dir, max_age_days, max_size_gb, label):
         size = p.stat().st_size
         try:
             p.unlink()
+            _drop_thumb(p)
             total -= size
             removed_size += 1
         except OSError as e:

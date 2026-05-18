@@ -169,7 +169,7 @@
 <script src="/static/controller.js"></script>
 <script>
 const SP = window.SkyPlayback;
-const { imgUrl: _imgUrl, readableTs, formatTs, fmtTsHuman, fmtMD, fmt12hm, hhmmToMin,
+const { imgUrl: _imgUrl, thumbUrl: _thumbUrl, readableTs, formatTs, fmtTsHuman, fmtMD, fmt12hm, hhmmToMin,
         describePartOfDay, timeColor, buildGradientFor, frameTimeColor, PreloadCache } = SP;
 const SERVER_CAMERA = {% if camera_name %}{{ camera_name | tojson }}{% else %}null{% endif %};
 const urlParams = new URLSearchParams(window.location.search);
@@ -180,8 +180,10 @@ function withCam(url) {
   return url + (url.includes('?') ? '&' : '?') + camQS;
 }
 function imgUrl(name) { return _imgUrl(name, CAMERA); }
+function thumbUrl(name) { return _thumbUrl(name, CAMERA); }
 const cache = new PreloadCache({ camera: CAMERA, ahead: 60, behind: 30, cap: 600 });
 function preloadAround(i) { cache.around(i, rangeLo, rangeHi); }
+function preloadAroundPreview(i) { cache.aroundPreview(i, rangeLo, rangeHi); }
 const FPS = 10;
 const FS_DURATION_MS = 30000;
 const IDLE_MS = 120000;
@@ -763,6 +765,9 @@ function updateDrag(clientX) {
   showThumbTooltip(anchor, clientX, dual);
 }
 
+let settleTimer = null;
+function clearSettle() { if (settleTimer) { clearTimeout(settleTimer); settleTimer = null; } }
+
 dual.addEventListener('pointerdown', (e) => {
   if (!frames.length) return;
   e.preventDefault();
@@ -772,6 +777,8 @@ dual.addEventListener('pointerdown', (e) => {
   playing = false;
   setPlayBtn('Play');
   dragging = true;
+  clearSettle();
+  cache.abortPending();
   updateDrag(e.clientX);
 
   const onMove = (ev) => updateDrag(ev.clientX);
@@ -784,6 +791,14 @@ dual.addEventListener('pointerdown', (e) => {
     dual.removeEventListener('pointercancel', onUp);
     cache.abortPending();
     show(idx);
+    clearSettle();
+    settleTimer = setTimeout(() => {
+      settleTimer = null;
+      if (!dragging) {
+        show(idx);
+        if (TOUCH_MODE) publishTouchState();
+      }
+    }, 300);
     playing = true;
     setPlayBtn('Pause');
   };
@@ -796,19 +811,37 @@ function show(i) {
   if (!frames.length) return;
   idx = Math.max(rangeLo, Math.min(rangeHi, i));
   const f = frames[idx];
-  img.src = imgUrl(f.name);
+  if (dragging) {
+    img.src = thumbUrl(f.name);
+    preloadAroundPreview(idx);
+  } else {
+    img.src = imgUrl(f.name);
+    preloadAround(idx);
+  }
   if (img.complete && img.naturalWidth > 0) setLoading(false);
   else setLoading(true);
   tsLabel.textContent = fmtTsHuman(f.ts);
   renderThumbs();
   updateTimeLabel(f.ts);
   renderActiveEvents();
-  if (!dragging) preloadAround(idx);
   if (TOUCH_MODE) publishTouchState();
 }
 
+let _lastPublishAt = 0;
+let _pendingPublish = null;
 function publishTouchState() {
   if (!frames.length || !window.SkyController) return;
+  const now = performance.now();
+  if (dragging && now - _lastPublishAt < 100) {
+    if (_pendingPublish) return;
+    _pendingPublish = setTimeout(() => {
+      _pendingPublish = null;
+      publishTouchState();
+    }, 100 - (now - _lastPublishAt));
+    return;
+  }
+  if (_pendingPublish) { clearTimeout(_pendingPublish); _pendingPublish = null; }
+  _lastPublishAt = now;
   const f = frames[idx];
   if (!f) return;
   window.SkyController.publish({
@@ -816,6 +849,7 @@ function publishTouchState() {
     ts: f.ts,
     camera: CAMERA || null,
     playing,
+    preview: !!dragging,
     range_lo_ts: frames[rangeLo]?.ts || null,
     range_hi_ts: frames[rangeHi]?.ts || null,
   });

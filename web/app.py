@@ -282,6 +282,126 @@ def _read_frame_cached(path: Path) -> bytes:
     return data
 
 
+THUMB_DIR_NAME = "thumbs"
+THUMB_WIDTH = 480
+THUMB_HEIGHT = 270
+THUMB_QUALITY = 78
+_THUMB_CACHE_MAX = int(os.environ.get("THUMB_CACHE_MAX", "8000"))
+_thumb_cache: "OrderedDict[str, bytes]" = OrderedDict()
+_thumb_cache_lock = threading.Lock()
+
+
+def thumb_path_for(source: Path) -> Path:
+    return source.parent / THUMB_DIR_NAME / source.name
+
+
+def _generate_thumb(source: Path, dest: Path) -> bytes:
+    img = cv2.imread(str(source), cv2.IMREAD_COLOR)
+    if img is None:
+        raise RuntimeError(f"cv2 could not decode {source}")
+    h, w = img.shape[:2]
+    if w <= 0 or h <= 0:
+        raise RuntimeError(f"bad image dims {source}")
+    scale = min(THUMB_WIDTH / w, THUMB_HEIGHT / h, 1.0)
+    new_w = max(1, int(round(w * scale)))
+    new_h = max(1, int(round(h * scale)))
+    small = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    tmp = dest.with_suffix(dest.suffix + ".tmp")
+    ok, buf = cv2.imencode(".jpg", small, [int(cv2.IMWRITE_JPEG_QUALITY), THUMB_QUALITY])
+    if not ok:
+        raise RuntimeError(f"jpeg encode failed for {source}")
+    tmp.write_bytes(buf.tobytes())
+    tmp.replace(dest)
+    return dest.read_bytes()
+
+
+def _read_thumb_cached(source: Path) -> bytes:
+    dest = thumb_path_for(source)
+    key = str(dest)
+    with _thumb_cache_lock:
+        data = _thumb_cache.get(key)
+        if data is not None:
+            _thumb_cache.move_to_end(key)
+            return data
+    if dest.exists():
+        data = dest.read_bytes()
+    else:
+        data = _generate_thumb(source, dest)
+    with _thumb_cache_lock:
+        _thumb_cache[key] = data
+        _thumb_cache.move_to_end(key)
+        while len(_thumb_cache) > _THUMB_CACHE_MAX:
+            _thumb_cache.popitem(last=False)
+    return data
+
+
+def thumb_dir_size(subdir):
+    d = camera_image_dir(subdir) / THUMB_DIR_NAME
+    return _dir_size(d) if d.exists() else 0
+
+
+def _drop_thumb(source: Path):
+    t = thumb_path_for(source)
+    if t.exists():
+        try:
+            t.unlink()
+        except OSError:
+            pass
+    with _thumb_cache_lock:
+        _thumb_cache.pop(str(t), None)
+
+
+_thumb_backfill_lock = threading.Lock()
+_thumb_backfill_state = {
+    "running": False,
+    "total": 0,
+    "done": 0,
+    "started_at": None,
+    "finished_at": None,
+    "last_error": None,
+}
+
+
+def _thumb_backfill_snapshot():
+    with _thumb_backfill_lock:
+        return dict(_thumb_backfill_state)
+
+
+def _run_thumb_backfill():
+    try:
+        sources = []
+        for i, c in enumerate(CAMERAS):
+            sub = None if i == 0 else c["name"]
+            d = camera_image_dir(sub)
+            if not d.exists():
+                continue
+            for p in d.iterdir():
+                if not p.is_file():
+                    continue
+                if not TIMESTAMP_RE.match(p.name):
+                    continue
+                if thumb_path_for(p).exists():
+                    continue
+                sources.append(p)
+        with _thumb_backfill_lock:
+            _thumb_backfill_state["total"] = len(sources)
+            _thumb_backfill_state["done"] = 0
+        for p in sources:
+            try:
+                _read_thumb_cached(p)
+            except Exception as e:
+                with _thumb_backfill_lock:
+                    _thumb_backfill_state["last_error"] = f"{p.name}: {e}"
+                print(f"thumb backfill error {p}: {e}", flush=True)
+            with _thumb_backfill_lock:
+                _thumb_backfill_state["done"] += 1
+    finally:
+        with _thumb_backfill_lock:
+            _thumb_backfill_state["running"] = False
+            _thumb_backfill_state["finished_at"] = time.time()
+
+
 def resolve_camera(camera, cam):
     name = camera or cam
     if not name or name == DEFAULT_CAMERA:
@@ -295,11 +415,22 @@ def camera_image_dir(subdir):
     return IMAGE_DIR if subdir is None else IMAGE_DIR / subdir
 
 
+_list_cache: "dict[object, tuple[float, list]]" = {}
+_list_cache_lock = threading.Lock()
+
+
 def list_frames(subdir=None):
-    frames = []
     d = camera_image_dir(subdir)
-    if not d.exists():
-        return frames
+    try:
+        mtime = d.stat().st_mtime
+    except OSError:
+        return []
+    cache_key = subdir
+    with _list_cache_lock:
+        cached = _list_cache.get(cache_key)
+        if cached and cached[0] == mtime:
+            return cached[1]
+    frames = []
     for p in d.iterdir():
         if not p.is_file():
             continue
@@ -313,6 +444,8 @@ def list_frames(subdir=None):
         ts_local = ts_utc.astimezone(LOCAL_TZ).replace(tzinfo=None)
         frames.append((ts_local, p.name))
     frames.sort(key=lambda x: x[0])
+    with _list_cache_lock:
+        _list_cache[cache_key] = (mtime, frames)
     return frames
 
 
@@ -655,6 +788,22 @@ def image(name: str, download: int = 0, camera: str | None = None, cam: str | No
                     headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
 
+@app.get("/thumb/{name}")
+def thumb(name: str, camera: str | None = None, cam: str | None = None):
+    if not TIMESTAMP_RE.match(name):
+        raise HTTPException(400, "bad name")
+    sub = resolve_camera(camera, cam)
+    src = camera_image_dir(sub) / name
+    if not src.exists():
+        raise HTTPException(404, "not found")
+    try:
+        data = _read_thumb_cached(src)
+    except Exception as e:
+        raise HTTPException(500, f"thumb generate failed: {e}")
+    return Response(content=data, media_type="image/jpeg",
+                    headers={"Cache-Control": "public, max-age=31536000, immutable"})
+
+
 @app.delete("/image/{name}")
 def delete_image(name: str, camera: str | None = None, cam: str | None = None):
     if not TIMESTAMP_RE.match(name):
@@ -667,6 +816,7 @@ def delete_image(name: str, camera: str | None = None, cam: str | None = None):
         p.unlink()
     except OSError as e:
         raise HTTPException(500, f"unlink failed: {e}")
+    _drop_thumb(p)
     with _frame_cache_lock:
         _frame_cache.pop(str(p), None)
     return {"deleted": name}
@@ -790,12 +940,15 @@ def api_status():
     max_age_seconds = MAX_AGE_DAYS * 86400
     cams = []
     total_size = 0
+    thumb_total = 0
     for i, c in enumerate(CAMERAS):
         sub = None if i == 0 else c["name"]
         d = camera_image_dir(sub)
         frames = list_frames(sub)
+        thumb_size = thumb_dir_size(sub)
         size = _dir_size(d)
         total_size += size
+        thumb_total += thumb_size
         per_day = {}
         for ts, _ in frames:
             k = ts.strftime("%Y-%m-%d")
@@ -808,6 +961,7 @@ def api_status():
             "name": c["name"], "is_default": i == 0,
             "count": len(frames),
             "size_bytes": size,
+            "thumb_size_bytes": thumb_size,
             "size_pct_of_limit": round(size / max_size_bytes * 100.0, 1),
             "oldest_ts": oldest.isoformat() if oldest else None,
             "oldest_age_seconds": round(age_s),
@@ -885,12 +1039,35 @@ def api_status():
             "size_pct_of_limit": round(total_size / max_size_bytes * 100.0, 1),
         },
         "videos": videos_block,
+        "thumbs": {
+            "total_size_bytes": thumb_total,
+            "width": THUMB_WIDTH,
+            "height": THUMB_HEIGHT,
+            "backfill": _thumb_backfill_snapshot(),
+        },
     }
 
 
 @app.get("/api/videos")
 def api_videos():
     return list_videos()
+
+
+@app.post("/api/thumbs/backfill")
+def api_thumbs_backfill():
+    with _thumb_backfill_lock:
+        if _thumb_backfill_state["running"]:
+            snap = dict(_thumb_backfill_state)
+            return {"ok": False, "reason": "already running", **snap}
+        _thumb_backfill_state["running"] = True
+        _thumb_backfill_state["started_at"] = time.time()
+        _thumb_backfill_state["finished_at"] = None
+        _thumb_backfill_state["last_error"] = None
+        _thumb_backfill_state["total"] = 0
+        _thumb_backfill_state["done"] = 0
+        snap = dict(_thumb_backfill_state)
+    threading.Thread(target=_run_thumb_backfill, daemon=True).start()
+    return {"ok": True, **snap}
 
 
 @app.get("/api/videos/file/{camera}/{name}")
@@ -950,6 +1127,7 @@ async def api_images_delete_day(req: Request):
             p.unlink()
             with _frame_cache_lock:
                 _frame_cache.pop(str(p), None)
+            _drop_thumb(p)
             deleted += 1
         except OSError as e:
             errors.append({"name": name, "error": str(e)})

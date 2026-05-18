@@ -30,13 +30,24 @@
     STAGE.classList.remove('hidden');
   }
 
-  function showFrame(frame, camera) {
+  let pendingUpgrade = null;
+
+  function showFrame(frame, camera, preview) {
     if (!frame) { showPaired(); return; }
-    const key = `${camera || ''}|${frame}`;
+    const key = `${camera || ''}|${frame}|${preview ? 'p' : 'f'}`;
     if (key === lastFrameKey) { showPaired(); return; }
     lastFrameKey = key;
     const q = camera ? `?camera=${encodeURIComponent(camera)}` : '';
-    FRAME.src = `/image/${encodeURIComponent(frame)}${q}`;
+    const path = preview ? 'thumb' : 'image';
+    FRAME.src = `/${path}/${encodeURIComponent(frame)}${q}`;
+    if (pendingUpgrade) { clearTimeout(pendingUpgrade); pendingUpgrade = null; }
+    if (preview) {
+      pendingUpgrade = setTimeout(() => {
+        pendingUpgrade = null;
+        FRAME.src = `/image/${encodeURIComponent(frame)}${q}`;
+        lastFrameKey = `${camera || ''}|${frame}|f`;
+      }, 400);
+    }
     showPaired();
   }
 
@@ -67,13 +78,13 @@
     es.addEventListener('pair', (e) => {
       const d = JSON.parse(e.data);
       lastEventAt = Date.now();
-      if (d.frame) showFrame(d.frame, d.camera);
+      if (d.frame) showFrame(d.frame, d.camera, d.preview);
       else showPaired();
     });
     es.addEventListener('frame', (e) => {
       const d = JSON.parse(e.data);
       lastEventAt = Date.now();
-      showFrame(d.frame, d.camera);
+      showFrame(d.frame, d.camera, d.preview);
     });
     es.addEventListener('unpair', (e) => {
       const d = JSON.parse(e.data);
