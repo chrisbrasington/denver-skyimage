@@ -806,9 +806,10 @@ function applyWindowedInit() {
   if (!frames.length) return;
   const firstDay = frames[0].ts.slice(0, 10);
   let anchor = findAnchorFor(firstDay, 'sunrise');
-  if (anchor < 0) anchor = 0;
-  presetActive = false;
-  activePresetLabel = null;
+  const hasSunrise = anchor >= 0;
+  if (!hasSunrise) anchor = 0;
+  presetActive = hasSunrise;
+  activePresetLabel = hasSunrise ? `${fmtMD(firstDay)} sunrise` : null;
   refreshActivePreset();
   rangeLo = anchor;
   rangeHi = frames.length - 1;
