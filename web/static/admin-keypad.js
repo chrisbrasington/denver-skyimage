@@ -178,17 +178,7 @@
       flashBad();
     }
 
-    function bumpGateTimeout() {
-      if (mode !== 'gate' || !timeoutMs || destroyed) return;
-      if (timeoutTimer) clearTimeout(timeoutTimer);
-      timeoutTimer = setTimeout(() => {
-        destroy();
-        if (opts.onTimeout) opts.onTimeout();
-      }, timeoutMs);
-    }
-
     function handle(k) {
-      bumpGateTimeout();
       if (k === '⌫') {
         buf = buf.slice(0, -1);
         renderDisplay();
