@@ -69,6 +69,21 @@
 </style>
 </head>
 <body>
+<script src="/static/admin-keypad.js"></script>
+<script>
+(function () {
+  const goHome = () => window.location.replace('/');
+  window.AdminKeypad.show({
+    title: 'Admin Access',
+    sub: 'Enter PIN',
+    mode: 'gate',
+    timeoutMs: 10000,
+    onSuccess: () => {},
+    onFail: goHome,
+    onTimeout: goHome,
+  });
+})();
+</script>
 <header>
   <strong>Denver Sky</strong>
   <a href="/">Live</a>
@@ -76,9 +91,9 @@
   <a href="/browse">Browse</a>
   <a href="/events">Events</a>
   <button id="logEventBtn" style="font-size:0.85rem; padding:0.35rem 0.7rem;">Log event</button>
-  <a id="saveLink" href="/save">Save MP4</a>
-  <select id="daySel" title="Day"></select>
-  <a id="saveDay" href="#">Save Day Video</a>
+  <a id="saveLink" href="/save" style="display:none;">Save MP4</a>
+  <select id="daySel" title="Day" style="display:none;"></select>
+  <a id="saveDay" href="#" style="display:none;">Save Day Video</a>
 </header>
 <div class="camera-switcher" id="cameraSwitcher"></div>
 <div class="thumb-tooltip" id="thumbTooltip"></div>
@@ -926,7 +941,6 @@ async function buildCameraSwitcher(alwaysShow) {
   setInterval(loadDays, 60000);
 })();
 </script>
-<script src="/static/admin-keypad.js"></script>
 <script src="/static/hard-refresh.js"></script>
 </body>
 </html>
