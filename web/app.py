@@ -345,10 +345,18 @@ async def api_touch_register(req: Request):
         body = await req.json()
     except Exception:
         pass
-    camera = body.get("camera") if isinstance(body, dict) else None
+    if not isinstance(body, dict):
+        body = {}
+    camera = body.get("camera")
+    touch_id = body.get("id")
     ua = req.headers.get("User-Agent", "")
-    t = await STORE.register_touch(camera=camera, user_agent=ua)
-    return {"id": t.id, "kind": t.kind, "camera": t.camera}
+    t = await STORE.register_touch(camera=camera, user_agent=ua, touch_id=touch_id)
+    return {
+        "id": t.id,
+        "kind": t.kind,
+        "camera": t.camera,
+        "paired_tv_id": t.paired_tv_id,
+    }
 
 
 @app.post("/api/sessions/touch/{touch_id}/heartbeat")
@@ -404,14 +412,12 @@ async def api_sse_tv(tv_id: str, request: Request):
 
 
 @app.get("/api/sessions")
-async def api_sessions_list(request: Request):
-    _require_admin(request)
+async def api_sessions_list():
     return await STORE.list_sessions()
 
 
 @app.post("/api/sessions/pair")
 async def api_sessions_pair(request: Request):
-    _require_admin(request)
     body = await request.json()
     code = str(body.get("code", "")).strip()
     touch_id = str(body.get("touch_id", "")).strip()
@@ -423,9 +429,29 @@ async def api_sessions_pair(request: Request):
     return {"ok": True, "tv_id": tv.id, "touch_id": touch_id}
 
 
+@app.post("/api/sessions/pair-tv")
+async def api_sessions_pair_tv(request: Request):
+    body = await request.json()
+    tv_id = str(body.get("tv_id", "")).strip()
+    touch_id = str(body.get("touch_id", "")).strip()
+    if not tv_id or not touch_id:
+        raise HTTPException(400, "tv_id and touch_id required")
+    tv = await STORE.get_tv(tv_id)
+    if not tv:
+        raise HTTPException(404, "tv not found")
+    if not tv.pairing_code and tv.paired_touch_id and tv.paired_touch_id != touch_id:
+        await STORE.unpair(tv_id=tv_id)
+        tv = await STORE.get_tv(tv_id)
+    if not tv or not tv.pairing_code:
+        raise HTTPException(409, "tv unavailable")
+    paired_tv, err = await STORE.pair(tv.pairing_code, touch_id)
+    if not paired_tv:
+        raise HTTPException(404, err or "pair failed")
+    return {"ok": True, "tv_id": paired_tv.id, "touch_id": touch_id}
+
+
 @app.post("/api/sessions/unpair")
 async def api_sessions_unpair(request: Request):
-    _require_admin(request)
     body = await request.json()
     tv_id = body.get("tv_id")
     touch_id = body.get("touch_id")

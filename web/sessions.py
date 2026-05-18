@@ -89,9 +89,19 @@ class SessionStore:
                 return code
         return "".join(random.choices("0123456789", k=PAIRING_CODE_DIGITS + 2))
 
-    async def register_touch(self, camera: Optional[str], user_agent: str = "") -> TouchSession:
+    async def register_touch(self, camera: Optional[str], user_agent: str = "",
+                             touch_id: Optional[str] = None) -> TouchSession:
         async with self._lock:
-            t = TouchSession(id=_new_id(), camera=camera, user_agent=user_agent)
+            if touch_id and touch_id in self.touches:
+                t = self.touches[touch_id]
+                t.last_seen = time.time()
+                if camera is not None:
+                    t.camera = camera
+                if user_agent:
+                    t.user_agent = user_agent
+                return t
+            new_id = touch_id or _new_id()
+            t = TouchSession(id=new_id, camera=camera, user_agent=user_agent)
             self.touches[t.id] = t
             return t
 

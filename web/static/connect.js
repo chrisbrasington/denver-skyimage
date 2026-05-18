@@ -1,18 +1,6 @@
 (function () {
   'use strict';
 
-  let PIN = null;
-  let pollTimer = null;
-
-  function adminFetch(url, init) {
-    init = init || {};
-    const headers = Object.assign({}, init.headers || {}, {
-      'X-Admin-Pin': PIN || '',
-      'Content-Type': 'application/json',
-    });
-    return fetch(url, Object.assign({}, init, { headers }));
-  }
-
   function fmtAge(sec) {
     if (sec == null) return '';
     if (sec < 60) return `${Math.round(sec)}s ago`;
@@ -37,8 +25,7 @@
   async function loadAndRender() {
     let data;
     try {
-      const r = await adminFetch('/api/sessions');
-      if (r.status === 401) { stopPolling(); window.location.replace('/'); return; }
+      const r = await fetch('/api/sessions', { cache: 'no-store' });
       if (!r.ok) return;
       data = await r.json();
     } catch { return; }
@@ -63,7 +50,6 @@
         row.appendChild(info);
         if (t.paired_tv_id) {
           const btn = el('button', { class: 'unpair', text: `Unpair (TV ${t.paired_tv_id.slice(0, 6)})` });
-          btn.dataset.touch = t.id;
           btn.addEventListener('click', () => unpair({ touch_id: t.id }));
           row.appendChild(btn);
         }
@@ -75,8 +61,7 @@
     sel.appendChild(el('option', { value: '', text: '— pick touch —' }));
     for (const t of data.touches) {
       const label = `${t.id.slice(0, 8)} · ${t.camera || 'default'}${t.paired_tv_id ? ' (paired)' : ''}`;
-      const opt = el('option', { value: t.id, text: label });
-      sel.appendChild(opt);
+      sel.appendChild(el('option', { value: t.id, text: label }));
     }
     sel.value = prevSel;
 
@@ -86,6 +71,14 @@
     } else {
       for (const tv of data.tvs) {
         const row = el('div', { class: 'row' + (tv.paired_touch_id ? ' paired' : '') });
+        if (!tv.paired_touch_id && tv.pairing_code) {
+          row.style.cursor = 'pointer';
+          row.title = 'click to fill code';
+          row.addEventListener('click', () => {
+            document.getElementById('codeInput').value = tv.pairing_code;
+            document.getElementById('touchSelect').focus();
+          });
+        }
         const info = el('div', { class: 'info' });
         const idLine = el('div', { class: 'id', text: tv.id.slice(0, 12) });
         if (tv.paired_touch_id) idLine.appendChild(el('span', { class: 'badge', text: 'paired' }));
@@ -95,7 +88,7 @@
         const right = el('div');
         if (tv.paired_touch_id) {
           const btn = el('button', { class: 'unpair', text: 'Unpair' });
-          btn.addEventListener('click', () => unpair({ tv_id: tv.id }));
+          btn.addEventListener('click', (e) => { e.stopPropagation(); unpair({ tv_id: tv.id }); });
           right.appendChild(btn);
         } else {
           right.appendChild(el('span', { class: 'code', text: tv.pairing_code || '----' }));
@@ -108,7 +101,11 @@
 
   async function unpair(body) {
     try {
-      await adminFetch('/api/sessions/unpair', { method: 'POST', body: JSON.stringify(body) });
+      await fetch('/api/sessions/unpair', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
     } catch {}
     loadAndRender();
   }
@@ -119,8 +116,9 @@
     if (!code || !touchId) { alert('enter a code and pick a touch session'); return; }
     let r;
     try {
-      r = await adminFetch('/api/sessions/pair', {
+      r = await fetch('/api/sessions/pair', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code, touch_id: touchId }),
       });
     } catch {
@@ -137,27 +135,11 @@
     }
   }
 
-  function stopPolling() {
-    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
-  }
-
-  function bootstrap(pin) {
-    PIN = pin;
-    document.getElementById('pairBtn').addEventListener('click', pair);
-    document.getElementById('codeInput').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') pair();
-    });
-    loadAndRender();
-    pollTimer = setInterval(loadAndRender, 2000);
-  }
-
-  window.AdminKeypad.show({
-    title: 'Connect Admin',
-    sub: 'Enter PIN',
-    mode: 'gate',
-    timeoutMs: 15000,
-    onSuccess: (pin) => bootstrap(pin),
-    onFail: () => window.location.replace('/'),
-    onTimeout: () => window.location.replace('/'),
+  document.getElementById('pairBtn').addEventListener('click', pair);
+  document.getElementById('codeInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') pair();
   });
+
+  loadAndRender();
+  setInterval(loadAndRender, 2000);
 })();

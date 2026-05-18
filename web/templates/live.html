@@ -811,16 +811,18 @@ let lastPublishedFrame = null;
 let lastPublishAt = 0;
 
 async function registerTouchSession() {
+  let storedId = null;
+  try { storedId = localStorage.getItem('controller_id'); } catch {}
   try {
     const r = await fetch('/api/sessions/touch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ camera: CAMERA || null }),
+      body: JSON.stringify({ id: storedId || null, camera: CAMERA || null }),
     });
     if (!r.ok) return;
     const data = await r.json();
     TOUCH_SESSION_ID = data.id;
-    try { sessionStorage.setItem('touch_session_id', TOUCH_SESSION_ID); } catch {}
+    try { localStorage.setItem('controller_id', TOUCH_SESSION_ID); } catch {}
   } catch (e) { console.warn('touch session register failed', e); }
 }
 
