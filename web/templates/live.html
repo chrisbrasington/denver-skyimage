@@ -183,8 +183,17 @@ const stage = document.getElementById('stage');
 const tsLabel = document.getElementById('tsLabel');
 const playBtn = document.getElementById('playBtn');
 const TOUCH_MODE = {{ 'true' if touch_mode else 'false' }};
+const DAYS = {{ days|default(0)|tojson }};
 const IS_MOBILE = window.matchMedia('(max-width: 768px)').matches;
 const MOBILE_TOUCH = TOUCH_MODE && IS_MOBILE;
+
+function pad2(n) { return n < 10 ? '0' + n : '' + n; }
+function buildSinceParam() {
+  if (!(TOUCH_MODE && DAYS > 0)) return null;
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (DAYS - 1));
+  return `${start.getFullYear()}-${pad2(start.getMonth() + 1)}-${pad2(start.getDate())}_00-00-00`;
+}
 function setPlayBtn(text) { if (playBtn) playBtn.textContent = text; }
 const dual = document.getElementById('dual');
 const thumbLo = document.getElementById('thumbLo');
@@ -286,7 +295,9 @@ if (!MOBILE_TOUCH) {
 }
 
 async function loadFrames() {
-  const r = await fetch(withCam('/api/frames'));
+  const since = buildSinceParam();
+  const baseUrl = since ? `/api/frames?since=${encodeURIComponent(since)}` : '/api/frames';
+  const r = await fetch(withCam(baseUrl));
   const data = await r.json();
   const prevLen = frames.length;
   const wasAtEnd = rangeHi === Math.max(0, prevLen - 1);
@@ -788,6 +799,19 @@ function findAnchorFor(day, kind) {
 
 function applyIdleReset() {
   if (!frames.length) return;
+  if (TOUCH_MODE && DAYS > 0) {
+    presetActive = false;
+    activePresetLabel = null;
+    refreshActivePreset();
+    rangeLo = 0;
+    rangeHi = frames.length - 1;
+    applyRangeUI();
+    idx = rangeLo;
+    show(idx);
+    playing = true;
+    setPlayBtn('Pause');
+    return;
+  }
   const today = frames[frames.length - 1].ts.slice(0, 10);
   const days = Object.keys(sunTimes).sort();
   const todayIdx = days.indexOf(today);

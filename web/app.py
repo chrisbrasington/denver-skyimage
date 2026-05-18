@@ -355,14 +355,15 @@ def live_for_camera(name: str, request: Request):
 
 
 @app.get("/touch", response_class=HTMLResponse)
-def touch(request: Request):
-    return TEMPLATES.TemplateResponse(request, "live.html", {"touch_mode": True})
+def touch(request: Request, days: int = 2):
+    return TEMPLATES.TemplateResponse(request, "live.html", {"touch_mode": True, "days": max(1, days)})
 
 
 @app.get("/touch/{name}", response_class=HTMLResponse)
-def touch_for_camera(name: str, request: Request):
+def touch_for_camera(name: str, request: Request, days: int = 2):
     _check_camera_name(name)
-    return TEMPLATES.TemplateResponse(request, "live.html", {"touch_mode": True, "camera_name": name})
+    return TEMPLATES.TemplateResponse(request, "live.html",
+                                      {"touch_mode": True, "camera_name": name, "days": max(1, days)})
 
 
 @app.get("/camera/{name}/last-hour", response_class=HTMLResponse)
@@ -375,6 +376,17 @@ def camera_last_hour(name: str, request: Request):
 def touch_last_hour(name: str, request: Request):
     _check_camera_name(name)
     return TEMPLATES.TemplateResponse(request, "last_hour.html", {"camera_name": name})
+
+
+@app.get("/last", response_class=HTMLResponse)
+def last_live(request: Request):
+    return TEMPLATES.TemplateResponse(request, "last_live.html", {"camera_name": DEFAULT_CAMERA})
+
+
+@app.get("/last/{name}", response_class=HTMLResponse)
+def last_live_for_camera(name: str, request: Request):
+    _check_camera_name(name)
+    return TEMPLATES.TemplateResponse(request, "last_live.html", {"camera_name": name})
 
 
 @app.get("/api/cameras")

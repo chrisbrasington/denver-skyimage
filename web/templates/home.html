@@ -20,6 +20,10 @@
   .card .meta { padding: 0.6rem 0.9rem 0.3rem; display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
   .card .name { font-size: 1.05rem; font-weight: 600; color: #ffd76a; text-transform: capitalize; }
   .card .ts { font-size: 0.75rem; color: #aab; font-variant-numeric: tabular-nums; }
+  .card .touch-ranges { display: flex; flex-direction: column; gap: 0.4rem; padding: 0.4rem 0.6rem 0; }
+  .card .touch-ranges a { background: #2a3a55; border: 1px solid #3a557d; color: #cfe0ff; border-radius: 4px; padding: 0.55rem 0.5rem; text-align: center; text-decoration: none; font-size: 0.9rem; font-weight: 600; }
+  .card .touch-ranges a:hover { background: #34466a; }
+  .card .touch-ranges .empty { color: #788; text-align: center; font-size: 0.8rem; padding: 0.4rem; }
   .card .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; padding: 0.4rem 0.6rem 0.7rem; }
   .card .actions a { background: #1f2630; color: #e6e9ef; border: 1px solid #333; border-radius: 4px; padding: 0.5rem 0.4rem; text-align: center; text-decoration: none; font-size: 0.82rem; }
   .card .actions a:hover { background: #2a3340; }
@@ -69,14 +73,54 @@ function cardFor(cam) {
       <span class="name">${cam}</span>
       <span class="ts" data-ts></span>
     </div>
+    <div class="touch-ranges" data-ranges>
+      <div class="empty">loading days…</div>
+    </div>
     <div class="actions">
-      <a class="primary" href="/touch/${encodeURIComponent(cam)}">Touch</a>
       <a href="/touch/${encodeURIComponent(cam)}/last-hour">Last hour</a>
+      <a href="/last/${encodeURIComponent(cam)}">Last image</a>
       <a href="/camera/${encodeURIComponent(cam)}">Admin / TV</a>
       <a href="/browse/${encodeURIComponent(cam)}">Browse</a>
     </div>
   `;
   return card;
+}
+
+const WD_FMT = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Denver', weekday: 'short' });
+const MD_FMT = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Denver', month: 'short', day: 'numeric' });
+
+function parseDay(s) {
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function rangeLabel(days, latestDay) {
+  const todayWd = WD_FMT.format(latestDay);
+  if (days === 1) return `Today (${todayWd})`;
+  const start = new Date(latestDay);
+  start.setDate(start.getDate() - (days - 1));
+  if (days <= 6) return `${WD_FMT.format(start)} – Today (${todayWd})`;
+  return `${MD_FMT.format(start)} – Today (${todayWd})`;
+}
+
+async function renderRanges(cam, card) {
+  const box = card.querySelector('[data-ranges]');
+  try {
+    const r = await fetch(`/api/days?camera=${encodeURIComponent(cam)}`, { cache: 'no-store' });
+    if (!r.ok) { box.innerHTML = `<div class="empty">no days</div>`; return; }
+    const data = await r.json();
+    if (!data.length) { box.innerHTML = `<div class="empty">no images yet</div>`; return; }
+    const latestDay = parseDay(data[0].day);
+    box.innerHTML = '';
+    for (let n = 1; n <= data.length; n++) {
+      const a = document.createElement('a');
+      a.href = `/touch/${encodeURIComponent(cam)}?days=${n}`;
+      a.textContent = rangeLabel(n, latestDay);
+      box.appendChild(a);
+    }
+  } catch (e) {
+    box.innerHTML = `<div class="empty">error</div>`;
+  }
 }
 
 async function refreshThumb(cam, card) {
@@ -109,7 +153,9 @@ for (const cam of CAMERAS) {
   const card = cardFor(cam);
   grid.appendChild(card);
   refreshThumb(cam, card);
+  renderRanges(cam, card);
   setInterval(() => refreshThumb(cam, card), 30_000);
+  setInterval(() => renderRanges(cam, card), 5 * 60_000);
 }
 </script>
 </body>
