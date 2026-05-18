@@ -463,7 +463,16 @@ async def api_sessions_unpair(request: Request):
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
-    return TEMPLATES.TemplateResponse(request, "home.html", {"cameras": CAMERA_NAMES})
+    return TEMPLATES.TemplateResponse(
+        request, "home.html", {"cameras": CAMERA_NAMES, "auto_admin": False}
+    )
+
+
+@app.get("/admin", response_class=HTMLResponse)
+def admin_prompt(request: Request):
+    return TEMPLATES.TemplateResponse(
+        request, "home.html", {"cameras": CAMERA_NAMES, "auto_admin": True}
+    )
 
 
 @app.get("/camera/{name}", response_class=HTMLResponse)

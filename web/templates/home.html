@@ -381,7 +381,11 @@ overlay.addEventListener('click', (e) => { if (e.target === overlay) closePairOv
       sub: 'Enter PIN',
       mode: 'gate',
       timeoutMs: 10000,
-      onSuccess: () => { keypadOpen = false; reveal(); },
+      onSuccess: () => {
+        keypadOpen = false;
+        reveal();
+        if (location.pathname === '/admin') history.replaceState(null, '', '/');
+      },
       onFail: () => { keypadOpen = false; },
       onTimeout: () => { keypadOpen = false; },
     });
@@ -409,6 +413,10 @@ overlay.addEventListener('click', (e) => { if (e.target === overlay) closePairOv
     kbBuf = (kbBuf + e.key).slice(-5);
     if (kbBuf === 'admin') openKeypad();
   });
+
+  if ({{ auto_admin | tojson }}) {
+    window.addEventListener('load', () => openKeypad());
+  }
 })();
 </script>
 </body>
