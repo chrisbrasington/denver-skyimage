@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 import re
+import threading
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -48,6 +49,32 @@ def write_thumb(source: Path):
             tmp.replace(dest)
     except Exception as e:
         print(f"thumb write fail {source}: {e}", flush=True)
+
+
+def backfill_thumbs(cameras):
+    total = 0
+    for i, cam in enumerate(cameras):
+        target = camera_dir(cam, i == 0)
+        if not target.exists():
+            continue
+        missing = []
+        for p in target.iterdir():
+            if not p.is_file() or not TIMESTAMP_RE.match(p.name):
+                continue
+            if (target / THUMB_DIR_NAME / p.name).exists():
+                continue
+            missing.append(p)
+        if not missing:
+            continue
+        print(f"[{datetime.now()}] [{cam['name']}] thumb backfill start: {len(missing)} missing", flush=True)
+        done = 0
+        for p in missing:
+            write_thumb(p)
+            done += 1
+        total += done
+        print(f"[{datetime.now()}] [{cam['name']}] thumb backfill done: {done}", flush=True)
+    if total == 0:
+        print(f"[{datetime.now()}] thumb backfill: nothing to do", flush=True)
 
 
 def load_config():
@@ -192,6 +219,8 @@ def main():
         print("no cameras configured", flush=True)
         return
     print(f"start watcher cameras={[c['name'] for c in cameras]} interval={interval}s age={max_age_days}d size={max_size_gb}GB", flush=True)
+
+    threading.Thread(target=backfill_thumbs, args=(cameras,), daemon=True).start()
 
     prune_counter = 0
     while True:

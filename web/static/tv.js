@@ -6,7 +6,11 @@
   FRAME.addEventListener('error', () => {
     const src = FRAME.getAttribute('src') || '';
     const m = src.match(/^\/thumb\/([^?]+)(\?.*)?$/);
-    if (m) FRAME.src = `/image/${m[1]}${m[2] || ''}`;
+    if (!m) return;
+    const upgraded = `/image/${m[1]}${m[2] || ''}`;
+    if (FRAME.dataset.lastFallback === upgraded) return;
+    FRAME.dataset.lastFallback = upgraded;
+    FRAME.src = upgraded;
   });
   const IDLE = document.getElementById('idle');
   const CODE = document.getElementById('code');
