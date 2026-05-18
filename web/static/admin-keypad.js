@@ -166,8 +166,9 @@
       } catch (e) { /* network error treated as fail */ }
       if (destroyed) return;
       if (ok) {
+        const pin = buf;
         destroy();
-        if (opts.onSuccess) opts.onSuccess();
+        if (opts.onSuccess) opts.onSuccess(pin);
         return;
       }
       if (opts.onFail) {

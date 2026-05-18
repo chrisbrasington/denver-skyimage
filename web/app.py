@@ -22,6 +22,8 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from sessions import STORE, sse_event_generator
+
 IMAGE_DIR = Path(os.environ.get("IMAGE_DIR", "/data/images"))
 VIDEO_DIR = Path(os.environ.get("VIDEO_DIR", "/data/videos"))
 EVENTS_DIR = Path(os.environ.get("EVENTS_DIR", "/data/events"))
@@ -87,11 +89,21 @@ app = FastAPI()
 app.mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static")
 
 
+@app.on_event("startup")
+async def _start_session_pruner():
+    await STORE.start_pruner()
+
+
 @app.middleware("http")
 async def _count_req(request, call_next):
     global _request_count
     _request_count += 1
     return await call_next(request)
+
+
+def _require_admin(request: Request):
+    if request.headers.get("X-Admin-Pin") != ADMIN_PASSWORD:
+        raise HTTPException(401, "admin required")
 
 
 _ENGINE_CANDIDATES = (
@@ -326,6 +338,103 @@ async def api_admin_auth(req: Request):
     return JSONResponse({"ok": True})
 
 
+@app.post("/api/sessions/touch")
+async def api_touch_register(req: Request):
+    body = {}
+    try:
+        body = await req.json()
+    except Exception:
+        pass
+    camera = body.get("camera") if isinstance(body, dict) else None
+    ua = req.headers.get("User-Agent", "")
+    t = await STORE.register_touch(camera=camera, user_agent=ua)
+    return {"id": t.id, "kind": t.kind, "camera": t.camera}
+
+
+@app.post("/api/sessions/touch/{touch_id}/heartbeat")
+async def api_touch_heartbeat(touch_id: str):
+    ok = await STORE.heartbeat_touch(touch_id)
+    if not ok:
+        raise HTTPException(404, "touch not registered")
+    return {"ok": True}
+
+
+@app.post("/api/sessions/touch/{touch_id}/state")
+async def api_touch_state(touch_id: str, req: Request):
+    body = await req.json()
+    ok, paired = await STORE.publish_touch_state(touch_id, body or {})
+    if not ok:
+        raise HTTPException(404, "touch not registered")
+    return {"ok": True, "paired": paired}
+
+
+@app.post("/api/sessions/touch/{touch_id}/delete")
+async def api_touch_delete(touch_id: str):
+    await STORE.delete_touch(touch_id)
+    return {"ok": True}
+
+
+@app.post("/api/sessions/tv")
+async def api_tv_register(req: Request):
+    body = {}
+    try:
+        body = await req.json()
+    except Exception:
+        pass
+    tv_id = body.get("id") if isinstance(body, dict) else None
+    ua = req.headers.get("User-Agent", "")
+    tv = await STORE.register_tv(tv_id=tv_id, user_agent=ua)
+    return {"id": tv.id, "pairing_code": tv.pairing_code, "paired_touch_id": tv.paired_touch_id}
+
+
+@app.get("/api/sse/tv/{tv_id}")
+async def api_sse_tv(tv_id: str, request: Request):
+    tv = await STORE.get_tv(tv_id)
+    if not tv:
+        raise HTTPException(404, "tv not registered")
+    return StreamingResponse(
+        sse_event_generator(tv_id, request, STORE),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
+@app.get("/api/sessions")
+async def api_sessions_list(request: Request):
+    _require_admin(request)
+    return await STORE.list_sessions()
+
+
+@app.post("/api/sessions/pair")
+async def api_sessions_pair(request: Request):
+    _require_admin(request)
+    body = await request.json()
+    code = str(body.get("code", "")).strip()
+    touch_id = str(body.get("touch_id", "")).strip()
+    if not code or not touch_id:
+        raise HTTPException(400, "code and touch_id required")
+    tv, err = await STORE.pair(code, touch_id)
+    if not tv:
+        raise HTTPException(404, err or "pair failed")
+    return {"ok": True, "tv_id": tv.id, "touch_id": touch_id}
+
+
+@app.post("/api/sessions/unpair")
+async def api_sessions_unpair(request: Request):
+    _require_admin(request)
+    body = await request.json()
+    tv_id = body.get("tv_id")
+    touch_id = body.get("touch_id")
+    if not tv_id and not touch_id:
+        raise HTTPException(400, "tv_id or touch_id required")
+    await STORE.unpair(tv_id=tv_id, touch_id=touch_id)
+    return {"ok": True}
+
+
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
     return TEMPLATES.TemplateResponse(request, "home.html", {"cameras": CAMERA_NAMES})
@@ -397,6 +506,16 @@ def last_live(request: Request):
 def last_live_for_camera(name: str, request: Request):
     _check_camera_name(name)
     return TEMPLATES.TemplateResponse(request, "last_live.html", {"camera_name": name})
+
+
+@app.get("/tv", response_class=HTMLResponse)
+def tv_page(request: Request):
+    return TEMPLATES.TemplateResponse(request, "tv.html", {})
+
+
+@app.get("/connect", response_class=HTMLResponse)
+def connect_page(request: Request):
+    return TEMPLATES.TemplateResponse(request, "connect.html", {})
 
 
 @app.get("/api/cameras")

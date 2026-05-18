@@ -803,7 +803,62 @@ function show(i) {
   updateTimeLabel(f.ts);
   renderActiveEvents();
   if (!dragging) preloadAround(idx);
+  if (TOUCH_MODE) publishTouchState();
 }
+
+let TOUCH_SESSION_ID = null;
+let lastPublishedFrame = null;
+let lastPublishAt = 0;
+
+async function registerTouchSession() {
+  try {
+    const r = await fetch('/api/sessions/touch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ camera: CAMERA || null }),
+    });
+    if (!r.ok) return;
+    const data = await r.json();
+    TOUCH_SESSION_ID = data.id;
+    try { sessionStorage.setItem('touch_session_id', TOUCH_SESSION_ID); } catch {}
+  } catch (e) { console.warn('touch session register failed', e); }
+}
+
+function publishTouchState() {
+  if (!TOUCH_SESSION_ID || !frames.length) return;
+  const f = frames[idx];
+  if (!f || f.name === lastPublishedFrame) return;
+  lastPublishedFrame = f.name;
+  lastPublishAt = Date.now();
+  const lo = frames[rangeLo]?.ts || null;
+  const hi = frames[rangeHi]?.ts || null;
+  fetch(`/api/sessions/touch/${TOUCH_SESSION_ID}/state`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    keepalive: true,
+    body: JSON.stringify({
+      frame: f.name, ts: f.ts, camera: CAMERA || null,
+      playing, range_lo_ts: lo, range_hi_ts: hi,
+    }),
+  }).catch(() => {});
+}
+
+setInterval(() => {
+  if (!TOUCH_SESSION_ID) return;
+  if (Date.now() - lastPublishAt < 8000) return;
+  fetch(`/api/sessions/touch/${TOUCH_SESSION_ID}/heartbeat`, {
+    method: 'POST', keepalive: true,
+    headers: { 'Content-Type': 'application/json' }, body: '{}',
+  }).catch(() => {});
+}, 10000);
+
+window.addEventListener('pagehide', () => {
+  if (!TOUCH_SESSION_ID) return;
+  const url = `/api/sessions/touch/${TOUCH_SESSION_ID}/delete`;
+  try {
+    navigator.sendBeacon?.(url, new Blob(['{}'], { type: 'application/json' }));
+  } catch {}
+});
 
 img.addEventListener('load', () => setLoading(false));
 img.addEventListener('error', () => setLoading(false));
@@ -927,6 +982,7 @@ async function buildCameraSwitcher() {
 
 (async () => {
   await buildCameraSwitcher();
+  if (TOUCH_MODE) await registerTouchSession();
   await loadSunTimes();
   await loadFrames();
   await loadEvents();

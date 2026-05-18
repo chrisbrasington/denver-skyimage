@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Denver Sky — Connect</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0b0d12; color: #e6e9ef; font-family: system-ui, sans-serif; }
+  header { padding: 0.6rem 1rem; border-bottom: 1px solid #222; display: flex; gap: 1rem; align-items: center; }
+  header a { color: #8ab4ff; text-decoration: none; font-size: 0.9rem; }
+  header .spacer { flex: 1; }
+  main { max-width: 1200px; margin: 0 auto; padding: 1rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
+  h2 { color: #8ab4ff; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 0.6rem; }
+  .panel { background: #11141c; border: 1px solid #222; border-radius: 8px; padding: 1rem; }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.6rem 0.5rem; border-bottom: 1px solid #1c2030; }
+  .row:last-child { border-bottom: 0; }
+  .row.paired { background: #14241a; border-radius: 4px; }
+  .info { min-width: 0; flex: 1; }
+  .id { font-family: ui-monospace, Menlo, monospace; font-size: 0.85rem; color: #aab; }
+  .meta { font-size: 0.8rem; color: #788; margin-top: 0.15rem; word-break: break-all; }
+  .age { color: #788; font-size: 0.72rem; margin-top: 0.15rem; font-variant-numeric: tabular-nums; }
+  .code { font-size: 2rem; font-weight: 800; color: #ffd76a; font-variant-numeric: tabular-nums; letter-spacing: 0.1em; }
+  .pair-bar { display: flex; gap: 0.6rem; align-items: center; padding: 0.8rem 1rem; background: #161a26; border: 1px solid #222; border-radius: 8px; max-width: 1200px; margin: 0 auto 2rem; }
+  .pair-bar input { flex: 0 0 9rem; background: #0b0d12; border: 2px solid #2a3340; color: #ffd76a; font-size: 1.8rem; padding: 0.4rem 0.6rem; border-radius: 6px; text-align: center; font-variant-numeric: tabular-nums; letter-spacing: 0.1em; }
+  .pair-bar select { flex: 1; background: #1f2630; color: #e6e9ef; border: 1px solid #333; border-radius: 4px; padding: 0.55rem; font-size: 0.95rem; font-family: inherit; min-width: 0; }
+  .pair-bar button { background: #2a5a3a; color: #cfffd9; border: 1px solid #3a7d55; border-radius: 4px; padding: 0.6rem 1.2rem; font-size: 1rem; cursor: pointer; font-family: inherit; }
+  .pair-bar button:active { background: #346a4a; }
+  .empty { color: #788; font-size: 0.85rem; padding: 0.6rem; text-align: center; }
+  .unpair { background: #3a2630; color: #f7b7b7; border: 1px solid #5a3340; border-radius: 4px; padding: 0.35rem 0.7rem; font-size: 0.78rem; cursor: pointer; font-family: inherit; }
+  .unpair:active { background: #4a3340; }
+  .badge { display: inline-block; margin-left: 0.4rem; padding: 0.15rem 0.45rem; border-radius: 3px; background: #14241a; color: #7fd17a; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+  @media (max-width: 720px) {
+    main { grid-template-columns: 1fr; }
+    .pair-bar { flex-wrap: wrap; }
+    .pair-bar input { flex: 1 1 100%; }
+    .pair-bar select { flex: 1 1 100%; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <strong>Denver Sky</strong>
+  <a href="/">Home</a>
+  <a href="/status">Status</a>
+  <span class="spacer"></span>
+  <strong>Connect</strong>
+</header>
+<main>
+  <section class="panel">
+    <h2>Touch Sessions</h2>
+    <div id="touches"><div class="empty">loading…</div></div>
+  </section>
+  <section class="panel">
+    <h2>TVs</h2>
+    <div id="tvs"><div class="empty">loading…</div></div>
+  </section>
+</main>
+<div class="pair-bar">
+  <input id="codeInput" inputmode="numeric" maxlength="5" placeholder="code" autocomplete="off">
+  <select id="touchSelect"><option value="">— pick touch —</option></select>
+  <button id="pairBtn">Pair</button>
+</div>
+<script src="/static/admin-keypad.js"></script>
+<script src="/static/connect.js"></script>
+<script src="/static/hard-refresh.js"></script>
+</body>
+</html>
