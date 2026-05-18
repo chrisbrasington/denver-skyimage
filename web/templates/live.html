@@ -790,13 +790,11 @@ dual.addEventListener('pointerdown', (e) => {
     dual.removeEventListener('pointerup', onUp);
     dual.removeEventListener('pointercancel', onUp);
     cache.abortPending();
-    show(idx);
     clearSettle();
     settleTimer = setTimeout(() => {
       settleTimer = null;
       if (!dragging) {
         show(idx);
-        if (TOUCH_MODE) publishTouchState();
       }
     }, 300);
     playing = true;
