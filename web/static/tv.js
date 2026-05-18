@@ -3,6 +3,11 @@
 
   const STAGE = document.getElementById('stage');
   const FRAME = document.getElementById('frame');
+  FRAME.addEventListener('error', () => {
+    const src = FRAME.getAttribute('src') || '';
+    const m = src.match(/^\/thumb\/([^?]+)(\?.*)?$/);
+    if (m) FRAME.src = `/image/${m[1]}${m[2] || ''}`;
+  });
   const IDLE = document.getElementById('idle');
   const CODE = document.getElementById('code');
   const STATUS = document.getElementById('status');

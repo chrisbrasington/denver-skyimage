@@ -3,3 +3,7 @@ check_interval_seconds: 30
 max_age_days: 4
 max_size_gb: 10
 admin_password: "11115"
+thumb_dir_name: thumbs
+thumb_width: 480
+thumb_height: 270
+thumb_quality: 78

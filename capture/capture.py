@@ -15,6 +15,17 @@ CAMERAS_PATH = os.environ.get("CAMERAS_PATH", "/config/cameras.json")
 IMAGE_DIR = Path(os.environ.get("IMAGE_DIR", "/data/images"))
 TIMESTAMP_RE = re.compile(r"^(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})\.jpg$")
 THUMB_DIR_NAME = "thumbs"
+THUMB_WIDTH = 480
+THUMB_HEIGHT = 270
+THUMB_QUALITY = 78
+
+
+def load_thumb_settings(cfg):
+    global THUMB_DIR_NAME, THUMB_WIDTH, THUMB_HEIGHT, THUMB_QUALITY
+    THUMB_DIR_NAME = str(cfg.get("thumb_dir_name", "thumbs"))
+    THUMB_WIDTH = int(cfg.get("thumb_width", 480))
+    THUMB_HEIGHT = int(cfg.get("thumb_height", 270))
+    THUMB_QUALITY = int(cfg.get("thumb_quality", 78))
 
 
 def _drop_thumb(source: Path):
@@ -24,6 +35,19 @@ def _drop_thumb(source: Path):
             t.unlink()
         except OSError as e:
             print(f"thumb unlink fail {t}: {e}", flush=True)
+
+
+def write_thumb(source: Path):
+    dest = source.parent / THUMB_DIR_NAME / source.name
+    try:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        with Image.open(source) as im:
+            im.thumbnail((THUMB_WIDTH, THUMB_HEIGHT), Image.LANCZOS)
+            tmp = dest.with_suffix(dest.suffix + ".tmp")
+            im.save(tmp, "JPEG", quality=THUMB_QUALITY, optimize=True)
+            tmp.replace(dest)
+    except Exception as e:
+        print(f"thumb write fail {source}: {e}", flush=True)
 
 
 def load_config():
@@ -146,6 +170,7 @@ def process_camera(cam, is_first, max_age_days, max_size_gb, do_prune):
                 dest = target / name
                 os.replace(temp, dest)
                 last.write_bytes(dest.read_bytes())
+                write_thumb(dest)
                 print(f"[{datetime.now()}] [{label}] saved {name}", flush=True)
             elif temp.exists():
                 temp.unlink()
@@ -160,6 +185,7 @@ def main():
     interval = int(cfg.get("check_interval_seconds", 30))
     max_age_days = float(cfg.get("max_age_days", 4))
     max_size_gb = float(cfg.get("max_size_gb", 10))
+    load_thumb_settings(cfg)
 
     cameras = load_cameras()
     if not cameras:

@@ -282,10 +282,10 @@ def _read_frame_cached(path: Path) -> bytes:
     return data
 
 
-THUMB_DIR_NAME = "thumbs"
-THUMB_WIDTH = 480
-THUMB_HEIGHT = 270
-THUMB_QUALITY = 78
+THUMB_DIR_NAME = str(CONFIG.get("thumb_dir_name", "thumbs"))
+THUMB_WIDTH = int(CONFIG.get("thumb_width", 480))
+THUMB_HEIGHT = int(CONFIG.get("thumb_height", 270))
+THUMB_QUALITY = int(CONFIG.get("thumb_quality", 78))
 _THUMB_CACHE_MAX = int(os.environ.get("THUMB_CACHE_MAX", "8000"))
 _thumb_cache: "OrderedDict[str, bytes]" = OrderedDict()
 _thumb_cache_lock = threading.Lock()
@@ -316,7 +316,15 @@ def _generate_thumb(source: Path, dest: Path) -> bytes:
     return dest.read_bytes()
 
 
-def _read_thumb_cached(source: Path) -> bytes:
+def _cache_thumb_bytes(key: str, data: bytes):
+    with _thumb_cache_lock:
+        _thumb_cache[key] = data
+        _thumb_cache.move_to_end(key)
+        while len(_thumb_cache) > _THUMB_CACHE_MAX:
+            _thumb_cache.popitem(last=False)
+
+
+def _read_thumb_if_exists(source: Path) -> bytes | None:
     dest = thumb_path_for(source)
     key = str(dest)
     with _thumb_cache_lock:
@@ -324,15 +332,17 @@ def _read_thumb_cached(source: Path) -> bytes:
         if data is not None:
             _thumb_cache.move_to_end(key)
             return data
-    if dest.exists():
-        data = dest.read_bytes()
-    else:
-        data = _generate_thumb(source, dest)
-    with _thumb_cache_lock:
-        _thumb_cache[key] = data
-        _thumb_cache.move_to_end(key)
-        while len(_thumb_cache) > _THUMB_CACHE_MAX:
-            _thumb_cache.popitem(last=False)
+    if not dest.exists():
+        return None
+    data = dest.read_bytes()
+    _cache_thumb_bytes(key, data)
+    return data
+
+
+def _generate_and_cache_thumb(source: Path) -> bytes:
+    dest = thumb_path_for(source)
+    data = _generate_thumb(source, dest)
+    _cache_thumb_bytes(str(dest), data)
     return data
 
 
@@ -389,7 +399,7 @@ def _run_thumb_backfill():
             _thumb_backfill_state["done"] = 0
         for p in sources:
             try:
-                _read_thumb_cached(p)
+                _generate_and_cache_thumb(p)
             except Exception as e:
                 with _thumb_backfill_lock:
                     _thumb_backfill_state["last_error"] = f"{p.name}: {e}"
@@ -795,11 +805,10 @@ def thumb(name: str, camera: str | None = None, cam: str | None = None):
     sub = resolve_camera(camera, cam)
     src = camera_image_dir(sub) / name
     if not src.exists():
-        raise HTTPException(404, "not found")
-    try:
-        data = _read_thumb_cached(src)
-    except Exception as e:
-        raise HTTPException(500, f"thumb generate failed: {e}")
+        raise HTTPException(404, "source not found")
+    data = _read_thumb_if_exists(src)
+    if data is None:
+        raise HTTPException(404, "thumb not generated")
     return Response(content=data, media_type="image/jpeg",
                     headers={"Cache-Control": "public, max-age=31536000, immutable"})
 

@@ -854,7 +854,15 @@ function publishTouchState() {
 }
 
 img.addEventListener('load', () => setLoading(false));
-img.addEventListener('error', () => setLoading(false));
+img.addEventListener('error', () => {
+  const src = img.getAttribute('src') || '';
+  if (src.startsWith('/thumb/')) {
+    const f = frames[idx];
+    if (f) img.src = imgUrl(f.name);
+  } else {
+    setLoading(false);
+  }
+});
 
 function findAnchorFor(day, kind) {
   const sun = sunTimes[day];
