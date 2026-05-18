@@ -97,6 +97,23 @@
 </style>
 </head>
 <body class="{% if touch_mode %}touch-mode{% endif %}">
+{% if not touch_mode %}
+<script src="/static/admin-keypad.js"></script>
+<script>
+(function () {
+  const goHome = () => window.location.replace('/');
+  window.AdminKeypad.show({
+    title: 'Admin Access',
+    sub: 'Enter PIN',
+    mode: 'gate',
+    timeoutMs: 10000,
+    onSuccess: () => {},
+    onFail: goHome,
+    onTimeout: goHome,
+  });
+})();
+</script>
+{% endif %}
 <div class="camera-switcher" id="cameraSwitcher"></div>
 <div class="thumb-tooltip" id="thumbTooltip"></div>
 <div class="main">
@@ -922,6 +939,7 @@ async function buildCameraSwitcher() {
   setInterval(async () => { await loadSunTimes(); await loadFrames(); await loadEvents(); }, 30000);
 })();
 </script>
+<script src="/static/admin-keypad.js"></script>
 <script src="/static/hard-refresh.js"></script>
 </body>
 </html>

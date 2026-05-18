@@ -2,10 +2,12 @@
   const CORNER_SIZE = 140;
   const HOLD_MS = 5000;
   const HINT_DELAY_MS = 800;
+  const KEYPAD_TIMEOUT_MS = 5000;
   let holdTimer = null;
   let hintTimer = null;
   let countdownTimer = null;
   let indicator = null;
+  let keypadOpen = false;
 
   function inTopLeft(t) {
     return t.clientX <= CORNER_SIZE && t.clientY <= CORNER_SIZE;
@@ -56,13 +58,36 @@
     if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
   }
 
+  function hardRefresh() {
+    const u = new URL(window.location.href);
+    u.searchParams.set('_r', Date.now().toString());
+    window.location.replace(u.toString());
+  }
+
+  function openKeypad() {
+    if (keypadOpen) return;
+    if (!window.AdminKeypad || !window.AdminKeypad.show) {
+      hardRefresh();
+      return;
+    }
+    keypadOpen = true;
+    window.AdminKeypad.show({
+      title: 'Admin Access',
+      sub: 'Enter PIN — or wait/refresh',
+      mode: 'refresh',
+      timeoutMs: KEYPAD_TIMEOUT_MS,
+      onSuccess: () => { window.location.replace('/'); },
+      onTimeout: () => { hardRefresh(); },
+    });
+  }
+
   function start() {
-    if (holdTimer) return;
+    if (holdTimer || keypadOpen) return;
     hintTimer = setTimeout(showIndicator, HINT_DELAY_MS);
     holdTimer = setTimeout(() => {
-      const u = new URL(window.location.href);
-      u.searchParams.set('_r', Date.now().toString());
-      window.location.replace(u.toString());
+      hideIndicator();
+      holdTimer = null;
+      openKeypad();
     }, HOLD_MS);
   }
 
@@ -73,6 +98,7 @@
   }
 
   function onTouch(e) {
+    if (keypadOpen) return;
     if (check(e.touches)) start();
     else cancel();
   }

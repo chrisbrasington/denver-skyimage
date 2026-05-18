@@ -28,6 +28,21 @@
 </style>
 </head>
 <body>
+<script src="/static/admin-keypad.js"></script>
+<script>
+(function () {
+  const goHome = () => window.location.replace('/');
+  window.AdminKeypad.show({
+    title: 'Admin Access',
+    sub: 'Enter PIN',
+    mode: 'gate',
+    timeoutMs: 10000,
+    onSuccess: () => {},
+    onFail: goHome,
+    onTimeout: goHome,
+  });
+})();
+</script>
 <header>
   <strong>Denver Sky</strong>
   <a href="/">Live</a>

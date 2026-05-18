@@ -63,6 +63,7 @@ CONFIG = load_config()
 MAX_AGE_DAYS = float(CONFIG.get("max_age_days", 4))
 MAX_SIZE_GB = float(CONFIG.get("max_size_gb", 10))
 CHECK_INTERVAL = int(CONFIG.get("check_interval_seconds", 30))
+ADMIN_PASSWORD = str(CONFIG.get("admin_password", "11115"))
 
 _events_lock = threading.Lock()
 
@@ -314,6 +315,15 @@ def _check_camera_name(name: str) -> str:
     if name not in CAMERA_NAMES:
         raise HTTPException(404, f"unknown camera: {name}")
     return name
+
+
+@app.post("/api/admin-auth")
+async def api_admin_auth(req: Request):
+    body = await req.json()
+    pin = str(body.get("pin", ""))
+    if pin != ADMIN_PASSWORD:
+        return JSONResponse({"ok": False}, status_code=401)
+    return JSONResponse({"ok": True})
 
 
 @app.get("/", response_class=HTMLResponse)
