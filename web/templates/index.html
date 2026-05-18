@@ -187,6 +187,7 @@ let sunTimes = {};
 let shiftDown = false;
 let rangeLo = 0;
 let rangeHi = 0;
+let dragging = false;
 
 function toggleFullscreen() {
   const el = stage;
@@ -784,15 +785,19 @@ dual.addEventListener('pointerdown', (e) => {
   dragWasPlaying = playing;
   playing = false;
   playBtn.textContent = 'Play';
+  dragging = true;
   updateDrag(e.clientX);
 
   const onMove = (ev) => updateDrag(ev.clientX);
   const onUp = () => {
     activeDrag = null;
+    dragging = false;
     hideThumbTooltip();
     dual.removeEventListener('pointermove', onMove);
     dual.removeEventListener('pointerup', onUp);
     dual.removeEventListener('pointercancel', onUp);
+    cache.abortPending();
+    show(idx);
     playing = true;
     playBtn.textContent = 'Pause';
   };
@@ -850,7 +855,7 @@ function show(i) {
   tsLabel.textContent = fmtTsHuman(f.ts);
   renderThumbs();
   renderActiveEvents();
-  preloadAround(idx);
+  if (!dragging) preloadAround(idx);
 }
 
 img.addEventListener('load', () => setLoading(false));

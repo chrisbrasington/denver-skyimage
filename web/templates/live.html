@@ -176,6 +176,7 @@ let anchors = [];
 let sunTimes = {};
 let rangeLo = 0;
 let rangeHi = 0;
+let dragging = false;
 let resetPending = false;
 let idleTimer = null;
 let fsTimer = null;
@@ -752,15 +753,19 @@ dual.addEventListener('pointerdown', (e) => {
   activeDrag = pickActive(e.clientX);
   playing = false;
   setPlayBtn('Play');
+  dragging = true;
   updateDrag(e.clientX);
 
   const onMove = (ev) => updateDrag(ev.clientX);
   const onUp = () => {
     activeDrag = null;
+    dragging = false;
     hideThumbTooltip();
     dual.removeEventListener('pointermove', onMove);
     dual.removeEventListener('pointerup', onUp);
     dual.removeEventListener('pointercancel', onUp);
+    cache.abortPending();
+    show(idx);
     playing = true;
     setPlayBtn('Pause');
   };
@@ -780,7 +785,7 @@ function show(i) {
   renderThumbs();
   updateTimeLabel(f.ts);
   renderActiveEvents();
-  preloadAround(idx);
+  if (!dragging) preloadAround(idx);
 }
 
 img.addEventListener('load', () => setLoading(false));

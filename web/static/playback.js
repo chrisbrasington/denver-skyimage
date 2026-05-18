@@ -181,6 +181,15 @@
       const im = this.cache.get(frames[i].name);
       return !!(im && im.complete && im.naturalWidth > 0);
     }
+
+    abortPending() {
+      for (const [name, im] of this.cache) {
+        if (!im.complete || im.naturalWidth === 0) {
+          im.src = '';
+          this.cache.delete(name);
+        }
+      }
+    }
   }
 
   window.SkyPlayback = {
