@@ -626,9 +626,9 @@ function frameToPct(i) {
 }
 function renderThumbs() {
   if (!frames.length) return;
-  thumbLo.style.left = frameToPct(rangeLo) + '%';
-  thumbHi.style.left = frameToPct(rangeHi) + '%';
-  playhead.style.left = frameToPct(idx) + '%';
+  if (dragPreviewKind !== 'lo') thumbLo.style.left = frameToPct(rangeLo) + '%';
+  if (dragPreviewKind !== 'hi') thumbHi.style.left = frameToPct(rangeHi) + '%';
+  if (dragPreviewKind !== 'playhead') playhead.style.left = frameToPct(idx) + '%';
   thumbLo.style.setProperty('--thumb-color', frameTimeColor(frames, rangeLo));
   thumbHi.style.setProperty('--thumb-color', frameTimeColor(frames, rangeHi));
   playhead.style.setProperty('--thumb-color', frameTimeColor(frames, idx));
@@ -753,8 +753,7 @@ function pointerToFrame(clientX) {
   return Math.round(pct * Math.max(0, frames.length - 1));
 }
 
-let activeDrag = null;
-let dragWasPlaying = true;
+let dragPreviewKind = null;
 
 function pickActive(clientX) {
   const r = dual.getBoundingClientRect();
@@ -771,50 +770,53 @@ function pickActive(clientX) {
   return cands[0][1] <= HIT ? cands[0][0] : 'playhead';
 }
 
-function updateDrag(clientX) {
-  if (!activeDrag || !frames.length) return;
+function previewDrag(clientX) {
+  if (!dragPreviewKind || !frames.length) return;
   let v = snapToDay(pointerToFrame(clientX));
   v = Math.max(0, Math.min(frames.length - 1, v));
-  if (activeDrag === 'lo') {
-    rangeLo = Math.min(v, Math.max(0, rangeHi - 1));
-    if (idx < rangeLo) idx = rangeLo;
-  } else if (activeDrag === 'hi') {
-    rangeHi = Math.max(v, Math.min(frames.length - 1, rangeLo + 1));
-    if (idx > rangeHi) idx = rangeHi;
-  } else {
-    if (v < rangeLo) rangeLo = v;
-    if (v > rangeHi) rangeHi = v;
-    idx = v;
-  }
-  applyRangeUI();
-  show(idx);
-  const anchor = activeDrag === 'lo' ? rangeLo : activeDrag === 'hi' ? rangeHi : idx;
-  showThumbTooltip(anchor, clientX, dual);
+  const pct = frameToPct(v);
+  const target =
+    dragPreviewKind === 'lo' ? thumbLo :
+    dragPreviewKind === 'hi' ? thumbHi : playhead;
+  target.style.left = pct + '%';
+  showThumbTooltip(v, clientX, dual);
 }
 
 dual.addEventListener('pointerdown', (e) => {
   if (!frames.length) return;
   e.preventDefault();
   try { dual.setPointerCapture(e.pointerId); } catch {}
-  activeDrag = pickActive(e.clientX);
-  dragWasPlaying = playing;
-  playing = false;
-  playBtn.textContent = 'Play';
+  dragPreviewKind = pickActive(e.clientX);
   dragging = true;
-  updateDrag(e.clientX);
+  previewDrag(e.clientX);
 
-  const onMove = (ev) => updateDrag(ev.clientX);
+  let lastX = e.clientX;
+  const onMove = (ev) => { lastX = ev.clientX; previewDrag(ev.clientX); };
   const onUp = () => {
-    activeDrag = null;
+    const kind = dragPreviewKind;
+    dragPreviewKind = null;
     dragging = false;
     hideThumbTooltip();
     dual.removeEventListener('pointermove', onMove);
     dual.removeEventListener('pointerup', onUp);
     dual.removeEventListener('pointercancel', onUp);
+
+    let v = snapToDay(pointerToFrame(lastX));
+    v = Math.max(0, Math.min(frames.length - 1, v));
+    if (kind === 'lo') {
+      rangeLo = Math.min(v, Math.max(0, rangeHi - 1));
+      if (idx < rangeLo) idx = rangeLo;
+    } else if (kind === 'hi') {
+      rangeHi = Math.max(v, Math.min(frames.length - 1, rangeLo + 1));
+      if (idx > rangeHi) idx = rangeHi;
+    } else {
+      if (v < rangeLo) rangeLo = v;
+      if (v > rangeHi) rangeHi = v;
+      idx = v;
+    }
+    applyRangeUI();
     cache.abortPending();
     show(idx);
-    playing = true;
-    playBtn.textContent = 'Pause';
   };
   dual.addEventListener('pointermove', onMove);
   dual.addEventListener('pointerup', onUp);
