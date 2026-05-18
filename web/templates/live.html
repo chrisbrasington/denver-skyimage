@@ -811,7 +811,6 @@ function show(i) {
   const f = frames[idx];
   if (dragging) {
     img.src = thumbUrl(f.name);
-    preloadAroundPreview(idx);
   } else {
     img.src = imgUrl(f.name);
     preloadAround(idx);

@@ -4,6 +4,7 @@
   const KEY = 'controller_id';
   let id = null;
   let lastFrame = null;
+  let lastPreview = false;
   let lastPublishAt = 0;
   let heartbeatTimer = null;
 
@@ -41,16 +42,36 @@
     }
   }
 
+  let lastCamera = null;
+  let reregistering = false;
+
+  async function reregister() {
+    if (reregistering) return;
+    reregistering = true;
+    try {
+      id = null;
+      try { localStorage.removeItem(KEY); } catch {}
+      await init(lastCamera);
+    } finally {
+      reregistering = false;
+    }
+  }
+
   function publish(state) {
     if (!id || !state || !state.frame) return;
-    if (state.frame === lastFrame) return;
+    const preview = !!state.preview;
+    if (state.frame === lastFrame && preview === lastPreview) return;
     lastFrame = state.frame;
+    lastPreview = preview;
+    lastCamera = state.camera || lastCamera;
     lastPublishAt = Date.now();
     fetch(`/api/sessions/touch/${id}/state`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       keepalive: true,
       body: JSON.stringify(state),
+    }).then((r) => {
+      if (r.status === 404) reregister();
     }).catch(() => {});
   }
 
