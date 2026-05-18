@@ -62,10 +62,11 @@
   .pair-modal .modal-empty { padding: 1rem; text-align: center; color: #788; font-size: 0.9rem; }
   .pair-modal .modal-empty a { color: #8ab4ff; }
   .pair-modal .hint { color: #788; font-size: 0.78rem; text-align: center; }
+  .admin-hidden { display: none !important; }
 </style>
 </head>
 <body>
-<header>
+<header class="admin-hidden" id="topHeader">
   <strong>Denver Sky</strong>
   <span class="spacer"></span>
   <a href="/browse">Browse</a>
@@ -74,7 +75,7 @@
   <a href="/tv">TV</a>
   <a href="/status">Status</a>
 </header>
-<div class="pair-banner" id="pairBanner">
+<div class="pair-banner admin-hidden" id="pairBanner">
   <span class="badge not" id="pairBadge">Not paired</span>
   <span class="label" id="pairLabel">Pair this device to a TV to mirror playback.</span>
   <span class="spacer"></span>
@@ -350,6 +351,65 @@ overlay.addEventListener('click', (e) => { if (e.target === overlay) closePairOv
 })();
 </script>
 <script src="/static/admin-keypad.js"></script>
-<script src="/static/hard-refresh.js"></script>
+<script>
+(function () {
+  const CORNER = 140;
+  const HOLD_MS = 5000;
+  let holdTimer = null;
+  let keypadOpen = false;
+
+  function inTL(t) { return t.clientX <= CORNER && t.clientY <= CORNER; }
+  function inTR(t) { return t.clientX >= window.innerWidth - CORNER && t.clientY <= CORNER; }
+  function check(touches) {
+    if (!touches || touches.length < 2) return false;
+    let tl = false, tr = false;
+    for (const t of touches) {
+      if (inTL(t)) tl = true;
+      else if (inTR(t)) tr = true;
+    }
+    return tl && tr;
+  }
+  function reveal() {
+    document.getElementById('topHeader').classList.remove('admin-hidden');
+    document.getElementById('pairBanner').classList.remove('admin-hidden');
+  }
+  function openKeypad() {
+    if (keypadOpen || !window.AdminKeypad) return;
+    keypadOpen = true;
+    window.AdminKeypad.show({
+      title: 'Admin Access',
+      sub: 'Enter PIN',
+      mode: 'gate',
+      timeoutMs: 10000,
+      onSuccess: () => { keypadOpen = false; reveal(); },
+      onFail: () => { keypadOpen = false; },
+      onTimeout: () => { keypadOpen = false; },
+    });
+  }
+  function start() {
+    if (holdTimer || keypadOpen) return;
+    holdTimer = setTimeout(() => { holdTimer = null; openKeypad(); }, HOLD_MS);
+  }
+  function cancel() {
+    if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+  }
+  function onTouch(e) {
+    if (keypadOpen) return;
+    if (check(e.touches)) start(); else cancel();
+  }
+  window.addEventListener('touchstart', onTouch, { passive: true });
+  window.addEventListener('touchmove', onTouch, { passive: true });
+  window.addEventListener('touchend', onTouch, { passive: true });
+  window.addEventListener('touchcancel', cancel, { passive: true });
+
+  // Mouse fallback for desktop testing: hold mouse in top-left corner while
+  // also clicking top-right corner won't work — use keyboard shortcut instead.
+  let kbBuf = '';
+  window.addEventListener('keydown', (e) => {
+    kbBuf = (kbBuf + e.key).slice(-5);
+    if (kbBuf === 'admin') openKeypad();
+  });
+})();
+</script>
 </body>
 </html>
