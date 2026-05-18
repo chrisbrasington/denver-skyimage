@@ -166,6 +166,7 @@
   </div>
 </div>
 <script src="/static/playback.js"></script>
+<script src="/static/controller.js"></script>
 <script>
 const SP = window.SkyPlayback;
 const { imgUrl: _imgUrl, readableTs, formatTs, fmtTsHuman, fmtMD, fmt12hm, hhmmToMin,
@@ -806,61 +807,19 @@ function show(i) {
   if (TOUCH_MODE) publishTouchState();
 }
 
-let TOUCH_SESSION_ID = null;
-let lastPublishedFrame = null;
-let lastPublishAt = 0;
-
-async function registerTouchSession() {
-  let storedId = null;
-  try { storedId = localStorage.getItem('controller_id'); } catch {}
-  try {
-    const r = await fetch('/api/sessions/touch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: storedId || null, camera: CAMERA || null }),
-    });
-    if (!r.ok) return;
-    const data = await r.json();
-    TOUCH_SESSION_ID = data.id;
-    try { localStorage.setItem('controller_id', TOUCH_SESSION_ID); } catch {}
-  } catch (e) { console.warn('touch session register failed', e); }
-}
-
 function publishTouchState() {
-  if (!TOUCH_SESSION_ID || !frames.length) return;
+  if (!frames.length || !window.SkyController) return;
   const f = frames[idx];
-  if (!f || f.name === lastPublishedFrame) return;
-  lastPublishedFrame = f.name;
-  lastPublishAt = Date.now();
-  const lo = frames[rangeLo]?.ts || null;
-  const hi = frames[rangeHi]?.ts || null;
-  fetch(`/api/sessions/touch/${TOUCH_SESSION_ID}/state`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    keepalive: true,
-    body: JSON.stringify({
-      frame: f.name, ts: f.ts, camera: CAMERA || null,
-      playing, range_lo_ts: lo, range_hi_ts: hi,
-    }),
-  }).catch(() => {});
+  if (!f) return;
+  window.SkyController.publish({
+    frame: f.name,
+    ts: f.ts,
+    camera: CAMERA || null,
+    playing,
+    range_lo_ts: frames[rangeLo]?.ts || null,
+    range_hi_ts: frames[rangeHi]?.ts || null,
+  });
 }
-
-setInterval(() => {
-  if (!TOUCH_SESSION_ID) return;
-  if (Date.now() - lastPublishAt < 8000) return;
-  fetch(`/api/sessions/touch/${TOUCH_SESSION_ID}/heartbeat`, {
-    method: 'POST', keepalive: true,
-    headers: { 'Content-Type': 'application/json' }, body: '{}',
-  }).catch(() => {});
-}, 10000);
-
-window.addEventListener('pagehide', () => {
-  if (!TOUCH_SESSION_ID) return;
-  const url = `/api/sessions/touch/${TOUCH_SESSION_ID}/delete`;
-  try {
-    navigator.sendBeacon?.(url, new Blob(['{}'], { type: 'application/json' }));
-  } catch {}
-});
 
 img.addEventListener('load', () => setLoading(false));
 img.addEventListener('error', () => setLoading(false));
@@ -984,7 +943,7 @@ async function buildCameraSwitcher() {
 
 (async () => {
   await buildCameraSwitcher();
-  if (TOUCH_MODE) await registerTouchSession();
+  if (TOUCH_MODE && window.SkyController) await window.SkyController.init(CAMERA || null);
   await loadSunTimes();
   await loadFrames();
   await loadEvents();

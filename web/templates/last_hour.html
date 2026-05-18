@@ -30,6 +30,7 @@
   </div>
 </div>
 <script src="/static/playback.js"></script>
+<script src="/static/controller.js"></script>
 <script>
 const SP = window.SkyPlayback;
 const { imgUrl: _imgUrl, readableTs, describePartOfDay, PreloadCache } = SP;
@@ -83,6 +84,9 @@ function show(i) {
   const f = frames[idx];
   img.src = imgUrl(f.name);
   updateTimeLabel(f.ts);
+  if (window.SkyController) window.SkyController.publish({
+    frame: f.name, ts: f.ts, camera: CAMERA, playing: true,
+  });
 }
 
 function tick() {
@@ -107,6 +111,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 (async () => {
+  if (window.SkyController) await window.SkyController.init(CAMERA || null);
   await loadSunTimes();
   await loadFrames();
   if (frames.length) show(0);

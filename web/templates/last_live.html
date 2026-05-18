@@ -30,6 +30,7 @@
   </div>
 </div>
 <script src="/static/playback.js"></script>
+<script src="/static/controller.js"></script>
 <script>
 const SP = window.SkyPlayback;
 const { imgUrl: _imgUrl, readableTs, describePartOfDay } = SP;
@@ -68,6 +69,9 @@ async function refreshLatest() {
     currentName = data.name;
     img.src = _imgUrl(data.name, CAMERA);
     updateTimeLabel(data.ts);
+    if (window.SkyController) window.SkyController.publish({
+      frame: data.name, ts: data.ts, camera: CAMERA, playing: true,
+    });
   } catch (e) { /* swallow */ }
 }
 
@@ -89,6 +93,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 (async () => {
+  if (window.SkyController) await window.SkyController.init(CAMERA || null);
   await loadSunTimes();
   await refreshLatest();
   setInterval(refreshLatest, 30000);

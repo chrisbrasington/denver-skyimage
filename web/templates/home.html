@@ -98,6 +98,7 @@
   <div class="empty">No cameras configured.</div>
   {% endif %}
 </main>
+<script src="/static/controller.js"></script>
 <script>
 const CAMERAS = {{ cameras | tojson }};
 const grid = document.getElementById('grid');
@@ -210,9 +211,7 @@ for (const cam of CAMERAS) {
 }
 
 // ── Controller (touch-session) pair UI ──
-const CONTROLLER_KEY = 'controller_id';
 let CONTROLLER_ID = null;
-try { CONTROLLER_ID = localStorage.getItem(CONTROLLER_KEY); } catch {}
 let pairedTvId = null;
 let pairedTvSeenCode = null;
 
@@ -223,32 +222,6 @@ const unpairBtn = document.getElementById('unpairBtn');
 const overlay = document.getElementById('pairOverlay');
 const overlayClose = document.getElementById('pairCloseBtn');
 const tvListEl = document.getElementById('tvList');
-
-async function registerController() {
-  try {
-    const r = await fetch('/api/sessions/touch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: CONTROLLER_ID || null }),
-    });
-    if (!r.ok) return;
-    const data = await r.json();
-    CONTROLLER_ID = data.id;
-    pairedTvId = data.paired_tv_id || null;
-    try { localStorage.setItem(CONTROLLER_KEY, CONTROLLER_ID); } catch {}
-    renderPairState();
-  } catch (e) { console.warn('controller register failed', e); }
-}
-
-function controllerHeartbeat() {
-  if (!CONTROLLER_ID) return;
-  fetch(`/api/sessions/touch/${CONTROLLER_ID}/heartbeat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    keepalive: true,
-    body: '{}',
-  }).catch(() => {});
-}
 
 function renderPairState() {
   if (pairedTvId) {
@@ -371,9 +344,8 @@ overlayClose.addEventListener('click', closePairOverlay);
 overlay.addEventListener('click', (e) => { if (e.target === overlay) closePairOverlay(); });
 
 (async () => {
-  await registerController();
+  if (window.SkyController) CONTROLLER_ID = await window.SkyController.init(null);
   await refreshPairStatus();
-  setInterval(controllerHeartbeat, 10000);
   setInterval(refreshPairStatus, 3000);
 })();
 </script>
