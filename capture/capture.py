@@ -2,7 +2,6 @@ import hashlib
 import json
 import os
 import re
-import threading
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -15,66 +14,6 @@ CONFIG_PATH = os.environ.get("CONFIG_PATH", "/config/config.yaml")
 CAMERAS_PATH = os.environ.get("CAMERAS_PATH", "/config/cameras.json")
 IMAGE_DIR = Path(os.environ.get("IMAGE_DIR", "/data/images"))
 TIMESTAMP_RE = re.compile(r"^(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})\.jpg$")
-THUMB_DIR_NAME = "thumbs"
-THUMB_WIDTH = 480
-THUMB_HEIGHT = 270
-THUMB_QUALITY = 78
-
-
-def load_thumb_settings(cfg):
-    global THUMB_DIR_NAME, THUMB_WIDTH, THUMB_HEIGHT, THUMB_QUALITY
-    THUMB_DIR_NAME = str(cfg.get("thumb_dir_name", "thumbs"))
-    THUMB_WIDTH = int(cfg.get("thumb_width", 480))
-    THUMB_HEIGHT = int(cfg.get("thumb_height", 270))
-    THUMB_QUALITY = int(cfg.get("thumb_quality", 78))
-
-
-def _drop_thumb(source: Path):
-    t = source.parent / THUMB_DIR_NAME / source.name
-    if t.exists():
-        try:
-            t.unlink()
-        except OSError as e:
-            print(f"thumb unlink fail {t}: {e}", flush=True)
-
-
-def write_thumb(source: Path):
-    dest = source.parent / THUMB_DIR_NAME / source.name
-    try:
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        with Image.open(source) as im:
-            im.thumbnail((THUMB_WIDTH, THUMB_HEIGHT), Image.LANCZOS)
-            tmp = dest.with_suffix(dest.suffix + ".tmp")
-            im.save(tmp, "JPEG", quality=THUMB_QUALITY, optimize=True)
-            tmp.replace(dest)
-    except Exception as e:
-        print(f"thumb write fail {source}: {e}", flush=True)
-
-
-def backfill_thumbs(cameras):
-    total = 0
-    for i, cam in enumerate(cameras):
-        target = camera_dir(cam, i == 0)
-        if not target.exists():
-            continue
-        missing = []
-        for p in target.iterdir():
-            if not p.is_file() or not TIMESTAMP_RE.match(p.name):
-                continue
-            if (target / THUMB_DIR_NAME / p.name).exists():
-                continue
-            missing.append(p)
-        if not missing:
-            continue
-        print(f"[{datetime.now()}] [{cam['name']}] thumb backfill start: {len(missing)} missing", flush=True)
-        done = 0
-        for p in missing:
-            write_thumb(p)
-            done += 1
-        total += done
-        print(f"[{datetime.now()}] [{cam['name']}] thumb backfill done: {done}", flush=True)
-    if total == 0:
-        print(f"[{datetime.now()}] thumb backfill: nothing to do", flush=True)
 
 
 def load_config():
@@ -149,7 +88,6 @@ def prune(target_dir, max_age_days, max_size_gb, label):
         if ts < cutoff:
             try:
                 p.unlink()
-                _drop_thumb(p)
                 removed_age += 1
             except OSError as e:
                 print(f"unlink fail {p}: {e}", flush=True)
@@ -166,7 +104,6 @@ def prune(target_dir, max_age_days, max_size_gb, label):
         size = p.stat().st_size
         try:
             p.unlink()
-            _drop_thumb(p)
             total -= size
             removed_size += 1
         except OSError as e:
@@ -197,7 +134,6 @@ def process_camera(cam, is_first, max_age_days, max_size_gb, do_prune):
                 dest = target / name
                 os.replace(temp, dest)
                 last.write_bytes(dest.read_bytes())
-                write_thumb(dest)
                 print(f"[{datetime.now()}] [{label}] saved {name}", flush=True)
             elif temp.exists():
                 temp.unlink()
@@ -212,15 +148,12 @@ def main():
     interval = int(cfg.get("check_interval_seconds", 30))
     max_age_days = float(cfg.get("max_age_days", 4))
     max_size_gb = float(cfg.get("max_size_gb", 10))
-    load_thumb_settings(cfg)
 
     cameras = load_cameras()
     if not cameras:
         print("no cameras configured", flush=True)
         return
     print(f"start watcher cameras={[c['name'] for c in cameras]} interval={interval}s age={max_age_days}d size={max_size_gb}GB", flush=True)
-
-    threading.Thread(target=backfill_thumbs, args=(cameras,), daemon=True).start()
 
     prune_counter = 0
     while True:

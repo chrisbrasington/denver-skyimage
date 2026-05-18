@@ -136,20 +136,6 @@
     <div class="cards" id="cam-cards"></div>
   </section>
 
-  <section class="panel" id="thumbs-section">
-    <h2>Thumbs <span id="thumbs-size-label" style="font-size:0.7rem;color:#788;font-weight:normal"></span></h2>
-    <div style="font-size:0.82rem;line-height:1.4;color:#aab;margin-bottom:0.5rem;">
-      Low-res preview images used for fast timeline scrubbing. Generated lazily on first request; backfill manually here.
-    </div>
-    <div class="bar-row"><span class="lbl">Storage</span><span class="val" id="thumbs-total">—</span></div>
-    <div class="bar-row"><span class="lbl">Backfill progress</span><span class="val" id="thumbs-progress">—</span></div>
-    <div class="bar"><div class="bar-fill" id="thumbs-fill" style="background:#c084e8;"></div></div>
-    <div class="actions-row" style="margin-top:0.6rem;">
-      <button id="thumbs-backfill" type="button">Generate missing thumbs</button>
-      <span id="thumbs-state" style="font-size:0.78rem;color:#aab;"></span>
-    </div>
-  </section>
-
   <section class="panel" id="videos-section" style="display:none">
     <h2>Videos</h2>
     <div id="videogen-note" style="font-size:0.82rem;line-height:1.4;color:#aab;margin-bottom:0.5rem;"></div>
@@ -283,7 +269,6 @@ function render(d) {
   });
 
   renderVideos(d.videos);
-  renderThumbs(d.thumbs);
 
   const engEl = document.getElementById('container-engine');
   engEl.textContent = d.container_engine ? `(via ${d.container_engine})` : '';
@@ -322,7 +307,6 @@ function render(d) {
 
 const CAM_PALETTE = ['#7fd17a','#8ab4ff','#c79bff','#ffb47a','#ff8a7a','#5ed3c8'];
 const COLOR_VIDEOS = '#ffd76a';
-const COLOR_THUMBS = '#c084e8';
 const COLOR_OTHER = '#506070';
 const COLOR_FREE = '#262d39';
 
@@ -335,12 +319,10 @@ function renderTotalStorage(d) {
     label: c.name + ' images', bytes: c.size_bytes || 0, color: CAM_PALETTE[i % CAM_PALETTE.length],
   }));
   const videoBytes = d.videos ? (d.videos.total_size_bytes || 0) : 0;
-  const thumbBytes = d.thumbs ? (d.thumbs.total_size_bytes || 0) : 0;
-  const sumKnown = cams.reduce((s, c) => s + c.bytes, 0) + videoBytes + thumbBytes;
+  const sumKnown = cams.reduce((s, c) => s + c.bytes, 0) + videoBytes;
   const otherBytes = Math.max(0, used - sumKnown);
   const segs = [
     ...cams,
-    { label: 'thumbs', bytes: thumbBytes, color: COLOR_THUMBS },
     { label: 'videos', bytes: videoBytes, color: COLOR_VIDEOS },
     { label: 'other', bytes: otherBytes, color: COLOR_OTHER },
     { label: 'free', bytes: free, color: COLOR_FREE },
@@ -371,31 +353,6 @@ function renderTotalStorage(d) {
     it.innerHTML = `<span class="sw" style="background:${s.color}"></span>${s.label}: ${fmtBytes(s.bytes)} (${pct}%)`;
     lg.appendChild(it);
   });
-}
-
-function renderThumbs(t) {
-  if (!t) return;
-  const lbl = document.getElementById('thumbs-size-label');
-  const total = document.getElementById('thumbs-total');
-  const prog = document.getElementById('thumbs-progress');
-  const fill = document.getElementById('thumbs-fill');
-  const btn = document.getElementById('thumbs-backfill');
-  const state = document.getElementById('thumbs-state');
-  lbl.textContent = `(${t.width || 480}×${t.height || 270})`;
-  total.textContent = fmtBytes(t.total_size_bytes || 0);
-  const bf = t.backfill || {};
-  if (bf.running) {
-    const pct = bf.total ? (bf.done / bf.total * 100) : 0;
-    prog.textContent = `${bf.done}/${bf.total} (${pct.toFixed(0)}%)`;
-    fill.style.width = pct.toFixed(1) + '%';
-    btn.disabled = true;
-    state.textContent = 'running…';
-  } else {
-    prog.textContent = bf.total ? `last run: ${bf.done}/${bf.total}` : '—';
-    fill.style.width = (bf.total && bf.done === bf.total) ? '100%' : '0%';
-    btn.disabled = false;
-    state.textContent = bf.last_error ? `last error: ${bf.last_error}` : '';
-  }
 }
 
 function renderVideos(v) {
@@ -550,22 +507,11 @@ document.getElementById('confirm-modal').addEventListener('click', (e) => {
   if (e.target.id === 'confirm-modal') closeConfirm();
 });
 
-let _thumbsRunning = false;
-let _fastTimer = null;
 async function load() {
   try {
     const r = await fetch('/api/status');
     if (!r.ok) throw new Error('HTTP ' + r.status);
-    const d = await r.json();
-    render(d);
-    const running = !!(d.thumbs && d.thumbs.backfill && d.thumbs.backfill.running);
-    if (running && !_fastTimer) {
-      _fastTimer = setInterval(load, 2000);
-    } else if (!running && _fastTimer) {
-      clearInterval(_fastTimer);
-      _fastTimer = null;
-    }
-    _thumbsRunning = running;
+    render(await r.json());
   } catch (e) {
     console.warn('status load failed', e);
     document.getElementById('updated').textContent = 'Load failed: ' + e.message;
@@ -573,21 +519,6 @@ async function load() {
 }
 load();
 setInterval(load, 30000);
-
-document.getElementById('thumbs-backfill').addEventListener('click', async () => {
-  const btn = document.getElementById('thumbs-backfill');
-  const state = document.getElementById('thumbs-state');
-  btn.disabled = true;
-  state.textContent = 'starting…';
-  try {
-    const r = await fetch('/api/thumbs/backfill', { method: 'POST' });
-    const j = await r.json();
-    if (!j.ok && j.reason) state.textContent = j.reason;
-  } catch (e) {
-    state.textContent = 'request failed: ' + e.message;
-  }
-  load();
-});
 </script>
 <script src="/static/hard-refresh.js"></script>
 </body>

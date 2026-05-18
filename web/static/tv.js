@@ -3,15 +3,6 @@
 
   const STAGE = document.getElementById('stage');
   const FRAME = document.getElementById('frame');
-  FRAME.addEventListener('error', () => {
-    const src = FRAME.getAttribute('src') || '';
-    const m = src.match(/^\/thumb\/([^?]+)(\?.*)?$/);
-    if (!m) return;
-    const upgraded = `/image/${m[1]}${m[2] || ''}`;
-    if (FRAME.dataset.lastFallback === upgraded) return;
-    FRAME.dataset.lastFallback = upgraded;
-    FRAME.src = upgraded;
-  });
   const IDLE = document.getElementById('idle');
   const CODE = document.getElementById('code');
   const STATUS = document.getElementById('status');
@@ -39,24 +30,13 @@
     STAGE.classList.remove('hidden');
   }
 
-  let pendingUpgrade = null;
-
-  function showFrame(frame, camera, preview) {
+  function showFrame(frame, camera) {
     if (!frame) { showPaired(); return; }
-    const key = `${camera || ''}|${frame}|${preview ? 'p' : 'f'}`;
+    const key = `${camera || ''}|${frame}`;
     if (key === lastFrameKey) { showPaired(); return; }
     lastFrameKey = key;
     const q = camera ? `?camera=${encodeURIComponent(camera)}` : '';
-    const path = preview ? 'thumb' : 'image';
-    FRAME.src = `/${path}/${encodeURIComponent(frame)}${q}`;
-    if (pendingUpgrade) { clearTimeout(pendingUpgrade); pendingUpgrade = null; }
-    if (preview) {
-      pendingUpgrade = setTimeout(() => {
-        pendingUpgrade = null;
-        FRAME.src = `/image/${encodeURIComponent(frame)}${q}`;
-        lastFrameKey = `${camera || ''}|${frame}|f`;
-      }, 400);
-    }
+    FRAME.src = `/image/${encodeURIComponent(frame)}${q}`;
     showPaired();
   }
 
@@ -87,13 +67,13 @@
     es.addEventListener('pair', (e) => {
       const d = JSON.parse(e.data);
       lastEventAt = Date.now();
-      if (d.frame) showFrame(d.frame, d.camera, d.preview);
+      if (d.frame) showFrame(d.frame, d.camera);
       else showPaired();
     });
     es.addEventListener('frame', (e) => {
       const d = JSON.parse(e.data);
       lastEventAt = Date.now();
-      showFrame(d.frame, d.camera, d.preview);
+      showFrame(d.frame, d.camera);
     });
     es.addEventListener('unpair', (e) => {
       const d = JSON.parse(e.data);
