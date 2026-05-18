@@ -3,9 +3,15 @@
 
   const STYLE_ID = 'admin-keypad-style';
   const CSS = `
+    body.akp-locked { overflow: hidden; }
+    body.akp-locked > *:not(.akp-backdrop):not(script) {
+      filter: blur(28px) saturate(0.6) brightness(0.5);
+      pointer-events: none !important;
+      transition: filter 0.15s ease-out;
+    }
     .akp-backdrop {
       position: fixed; inset: 0; z-index: 100000;
-      background: rgba(5,7,12,0.92);
+      background: rgba(5,7,12,0.55);
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       gap: 1.2rem; padding: 1.5rem;
       font-family: system-ui, sans-serif; color: #e6e9ef;
@@ -48,7 +54,19 @@
       font-family: inherit;
     }
     .akp-btn:active { background: #2a3340; }
-    .akp-btn.refresh { background: #2a3a55; border-color: #3a557d; color: #cfe0ff; }
+    .akp-btn.refresh {
+      background: #2a3a55; border: 2px solid #4a6da0; color: #ffffff;
+      font-size: 2rem; font-weight: 800;
+      padding: 1.8rem 2.6rem;
+      min-width: min(480px, 92vw);
+      border-radius: 14px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.55), 0 0 0 2px rgba(74,109,160,0.25);
+    }
+    .akp-btn.refresh:active { background: #34466a; transform: translateY(1px); }
+    .akp-btn.refresh .akp-countdown { font-size: 1.5rem; margin-left: 0.6rem; opacity: 0.9; }
+    .akp-actions { margin-top: 0.8rem; }
     .akp-countdown { color: #ffd76a; font-variant-numeric: tabular-nums; font-weight: 700; }
   `;
 
@@ -123,6 +141,7 @@
       if (timeoutTimer) clearTimeout(timeoutTimer);
       document.removeEventListener('keydown', onKey);
       backdrop.remove();
+      document.body.classList.remove('akp-locked');
       activeInstance = null;
     }
 
@@ -238,6 +257,7 @@
     }
 
     document.body.appendChild(backdrop);
+    document.body.classList.add('akp-locked');
     document.addEventListener('keydown', onKey);
 
     activeInstance = { destroy };
