@@ -2,7 +2,7 @@
   const CORNER_SIZE = 140;
   const HOLD_MS = 5000;
   const HINT_DELAY_MS = 800;
-  const KEYPAD_TIMEOUT_MS = 5000;
+  const KEYPAD_TIMEOUT_MS = 10000;
   let holdTimer = null;
   let hintTimer = null;
   let countdownTimer = null;
