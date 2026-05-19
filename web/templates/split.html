@@ -146,8 +146,8 @@ const SP = window.SkyPlayback;
 const { imgUrl: _imgUrl, thumbUrl: _thumbUrl, fmtTsHuman, fmtMD, fmt12hm, hhmmToMin,
         timeColor, buildGradientFor, PreloadCache } = SP;
 
-const LEFT = {{ left | tojson }};
-const RIGHT = {{ right | tojson }};
+let LEFT = {{ left | tojson }};
+let RIGHT = {{ right | tojson }};
 const DAYS = {{ days | tojson }};
 const ALL_CAMS = {{ cameras_public | tojson }};
 const CAM_LABEL_BY_NAME = Object.fromEntries(ALL_CAMS.map(c => [c.name, c.label || c.name]));
@@ -687,7 +687,31 @@ function buildSelectors() {
     if (l === r) l = (ALL_CAMS.find(c => c.name !== r) || {}).name || l;
     navigate(l, r);
   });
-  swapBtn.addEventListener('click', () => navigate(RIGHT, LEFT));
+  swapBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    swapInPlace();
+  });
+}
+
+function swapInPlace() {
+  const a = cams[0], b = cams[1];
+  [a.imgEl, b.imgEl] = [b.imgEl, a.imgEl];
+  [a.tsEl, b.tsEl] = [b.tsEl, a.tsEl];
+  [a.stageEl, b.stageEl] = [b.stageEl, a.stageEl];
+  a.lastShownIdx = -1;
+  b.lastShownIdx = -1;
+  [LEFT, RIGHT] = [RIGHT, LEFT];
+  leftSel.value = LEFT;
+  rightSel.value = RIGHT;
+  for (const c of cams) {
+    const lbl = c.stageEl.querySelector('.cam-label');
+    if (lbl) lbl.textContent = camLabel(c.name);
+  }
+  const q = new URLSearchParams(window.location.search);
+  q.set('left', LEFT); q.set('right', RIGHT);
+  history.replaceState(null, '', `/split?${q.toString()}`);
+  applyMirrorUI();
+  showAllAt(currentTs);
 }
 
 async function reload() {
