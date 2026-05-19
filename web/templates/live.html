@@ -32,9 +32,9 @@
     50%      { opacity: 0.75; transform: scale(1.04); }
   }
   .stage:fullscreen .fs-hint { display: none; }
-  .stage img { max-width: 100%; max-height: 100%; box-shadow: 0 0 30px #000; -webkit-user-drag: none; -webkit-touch-callout: none; pointer-events: none; }
+  .stage img { width: 100%; height: 100%; object-fit: contain; box-shadow: 0 0 30px #000; -webkit-user-drag: none; -webkit-touch-callout: none; pointer-events: none; }
   .stage:fullscreen { padding: 0; }
-  .stage:fullscreen img { max-height: 100vh; max-width: 100vw; box-shadow: none; }
+  .stage:fullscreen img { width: 100vw; height: 100vh; object-fit: contain; box-shadow: none; }
   .img-loader { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 0.85rem; padding: 1.25rem 1.9rem; background: rgba(10,15,20,0.72); border: 2px solid rgba(255,215,106,0.45); border-radius: 16px; backdrop-filter: blur(6px); box-shadow: 0 8px 28px rgba(0,0,0,0.55); opacity: 0; transition: opacity 120ms ease-out; pointer-events: none; z-index: 80; }
   .img-loader.show { opacity: 1; }
   .img-loader .spinner { width: 72px; height: 72px; border-radius: 50%; border: 6px solid rgba(255,255,255,0.18); border-top-color: #ffd76a; animation: imgSpin 0.7s linear infinite; }
