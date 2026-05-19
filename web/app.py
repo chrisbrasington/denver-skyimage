@@ -60,6 +60,10 @@ def load_config():
 
 CAMERAS = load_cameras()
 CAMERA_NAMES = [c["name"] for c in CAMERAS]
+CAMERAS_PUBLIC = [
+    {"name": c["name"], "alias": c.get("alias"), "label": c.get("alias") or c["name"]}
+    for c in CAMERAS
+]
 DEFAULT_CAMERA = CAMERA_NAMES[0] if CAMERA_NAMES else "north"
 CONFIG = load_config()
 MAX_AGE_DAYS = float(CONFIG.get("max_age_days", 4))
@@ -508,14 +512,16 @@ async def api_sessions_unpair(request: Request):
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
     return TEMPLATES.TemplateResponse(
-        request, "home.html", {"cameras": CAMERA_NAMES, "auto_admin": False}
+        request, "home.html",
+        {"cameras": CAMERA_NAMES, "cameras_public": CAMERAS_PUBLIC, "auto_admin": False}
     )
 
 
 @app.get("/admin", response_class=HTMLResponse)
 def admin_prompt(request: Request):
     return TEMPLATES.TemplateResponse(
-        request, "home.html", {"cameras": CAMERA_NAMES, "auto_admin": True}
+        request, "home.html",
+        {"cameras": CAMERA_NAMES, "cameras_public": CAMERAS_PUBLIC, "auto_admin": True}
     )
 
 
@@ -573,9 +579,14 @@ def split(request: Request, left: str | None = None, right: str | None = None, d
     R = right if right in cams else next((c for c in cams if c != L), None)
     if not R or L == R:
         raise HTTPException(400, "need two distinct cameras")
+    label_by_name = {c["name"]: c["label"] for c in CAMERAS_PUBLIC}
     return TEMPLATES.TemplateResponse(
         request, "split.html",
-        {"left": L, "right": R, "days": max(1, days), "cameras": cams},
+        {"left": L, "right": R,
+         "left_label": label_by_name.get(L, L),
+         "right_label": label_by_name.get(R, R),
+         "days": max(1, days),
+         "cameras": cams, "cameras_public": CAMERAS_PUBLIC},
     )
 
 
@@ -614,7 +625,11 @@ def connect_page(request: Request):
 
 @app.get("/api/cameras")
 def api_cameras():
-    return {"default": DEFAULT_CAMERA, "cameras": CAMERA_NAMES}
+    return {
+        "default": DEFAULT_CAMERA,
+        "cameras": CAMERA_NAMES,
+        "cameras_public": CAMERAS_PUBLIC,
+    }
 
 
 @app.get("/api/latest/{name}")
@@ -869,7 +884,7 @@ def api_status():
         age_s = (now - oldest).total_seconds() if oldest else 0
         since_last = (now - newest).total_seconds() if newest else None
         cams.append({
-            "name": c["name"], "is_default": i == 0,
+            "name": c["name"], "alias": c.get("alias"), "is_default": i == 0,
             "count": len(frames),
             "size_bytes": size,
             "size_pct_of_limit": round(size / max_size_bytes * 100.0, 1),

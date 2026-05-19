@@ -910,15 +910,17 @@ async function buildCameraSwitcher(alwaysShow) {
   try {
     const r = await fetch('/api/cameras');
     const data = await r.json();
-    const cams = data.cameras || [];
+    const cams = data.cameras_public
+      || (data.cameras || []).map(n => ({ name: n, label: n }));
     const def = data.default;
     if (cams.length <= 1 && !alwaysShow) return;
     const container = document.getElementById('cameraSwitcher');
     container.innerHTML = '';
     const active = CAMERA || def;
-    for (const name of cams) {
+    for (const cam of cams) {
+      const name = cam.name;
       const btn = document.createElement('button');
-      btn.textContent = name;
+      btn.textContent = cam.label || name;
       if (name === active) btn.classList.add('active');
       btn.addEventListener('click', () => {
         if (name === active) return;

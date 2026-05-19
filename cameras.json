@@ -2,6 +2,7 @@
   "cameras": [
     {
       "name": "west",
+      "alias": "city park",
       "url": "https://econtent.dmns.org/images/skyimage.jpg"
     },
     {

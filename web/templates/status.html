@@ -32,6 +32,7 @@
   .card { background: #11141c; border: 1px solid #222; border-radius: 6px; padding: 0.85rem 1rem; }
   .card h3 { margin: 0 0 0.4rem; font-size: 1rem; }
   .tag { font-size: 0.65rem; color: #0b0d12; background: #ffd76a; padding: 0.05rem 0.35rem; border-radius: 3px; vertical-align: middle; margin-left: 0.3rem; }
+  .alias-tag { font-size: 0.75rem; color: #8ab4ff; font-weight: normal; margin-left: 0.3rem; opacity: 0.85; }
   .kv { display: grid; grid-template-columns: auto 1fr; gap: 0.15rem 0.6rem; font-size: 0.82rem; margin: 0.4rem 0; }
   .kv .k { color: #8ab4ff; }
   .kv .v { font-variant-numeric: tabular-nums; }
@@ -231,9 +232,10 @@ function render(d) {
   ageList.innerHTML = '';
   d.cameras.forEach(c => {
     const wrap = document.createElement('div');
+    const aliasHtml = c.alias ? ` <span class="alias-tag">(${c.alias})</span>` : '';
     wrap.innerHTML = `
       <div class="bar-row">
-        <span class="lbl">${c.name}${c.is_default ? ' <span class="tag">default</span>' : ''}</span>
+        <span class="lbl">${c.name}${aliasHtml}${c.is_default ? ' <span class="tag">default</span>' : ''}</span>
         <span class="val">${fmtDur(c.oldest_age_seconds)} / ${d.limits.max_age_days}d (${c.age_pct_of_limit}%)</span>
       </div>
       <div class="bar"><div class="bar-fill"></div></div>`;
@@ -250,8 +252,9 @@ function render(d) {
     const days = (c.per_day || []).slice(0, 7).map(r =>
       `<div class="row"><span>${r.day}</span><span>${r.count.toLocaleString()} <button type="button" data-cam="${c.name}" data-day="${r.day}" data-count="${r.count}" class="del-day-btn">Delete day</button></span></div>`
     ).join('');
+    const aliasHtml = c.alias ? ` <span class="alias-tag">(${c.alias})</span>` : '';
     card.innerHTML = `
-      <h3>${c.name}${c.is_default ? ' <span class="tag">default</span>' : ''}</h3>
+      <h3>${c.name}${aliasHtml}${c.is_default ? ' <span class="tag">default</span>' : ''}</h3>
       <div class="kv">
         <span class="k">Count</span><span class="v">${c.count.toLocaleString()}</span>
         <span class="k">Size</span><span class="v">${fmtBytes(c.size_bytes)} / ${d.limits.max_size_gb} GB (${c.size_pct_of_limit}%)</span>

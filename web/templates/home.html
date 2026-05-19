@@ -120,7 +120,7 @@
 </div>
 <script src="/static/controller.js"></script>
 <script>
-const CAMERAS = {{ cameras | tojson }};
+const CAMERAS = {{ cameras_public | tojson }};
 const grid = document.getElementById('grid');
 
 function imgUrl(cam, name) {
@@ -135,28 +135,30 @@ function fmtTs(iso) {
 }
 
 function cardFor(cam) {
+  const name = cam.name;
+  const label = cam.label || cam.name;
   const card = document.createElement('div');
   card.className = 'card';
   card.innerHTML = `
     <label class="pick" data-pick title="Select for multi-view">
-      <input type="checkbox" data-cam="${cam}">
+      <input type="checkbox" data-cam="${name}">
       <span>multi-view</span>
     </label>
-    <a class="thumb" href="/touch/${encodeURIComponent(cam)}">
+    <a class="thumb" href="/touch/${encodeURIComponent(name)}">
       <div class="ph" data-ph>loading…</div>
     </a>
     <div class="meta">
-      <span class="name">${cam}</span>
+      <span class="name">${label}</span>
       <span class="ts" data-ts></span>
     </div>
     <div class="touch-ranges" data-ranges>
       <div class="empty">loading days…</div>
     </div>
     <div class="actions">
-      <a href="/touch/${encodeURIComponent(cam)}/last-hour">Last hour</a>
-      <a href="/last/${encodeURIComponent(cam)}">Last image</a>
-      <a href="/camera/${encodeURIComponent(cam)}">Admin / TV</a>
-      <a href="/browse/${encodeURIComponent(cam)}">Browse</a>
+      <a href="/touch/${encodeURIComponent(name)}/last-hour">Last hour</a>
+      <a href="/last/${encodeURIComponent(name)}">Last image</a>
+      <a href="/camera/${encodeURIComponent(name)}">Admin / TV</a>
+      <a href="/browse/${encodeURIComponent(name)}">Browse</a>
     </div>
   `;
   return card;
@@ -226,14 +228,18 @@ async function refreshThumb(cam, card) {
 }
 
 const cardByCam = new Map();
+const labelByCam = new Map();
 for (const cam of CAMERAS) {
+  const name = cam.name;
+  const label = cam.label || cam.name;
+  labelByCam.set(name, label);
   const card = cardFor(cam);
   grid.appendChild(card);
-  cardByCam.set(cam, card);
-  refreshThumb(cam, card);
-  renderRanges(cam, card);
-  setInterval(() => refreshThumb(cam, card), 30_000);
-  setInterval(() => renderRanges(cam, card), 5 * 60_000);
+  cardByCam.set(name, card);
+  refreshThumb(name, card);
+  renderRanges(name, card);
+  setInterval(() => refreshThumb(name, card), 30_000);
+  setInterval(() => renderRanges(name, card), 5 * 60_000);
 }
 
 // Multi-view picker: select 2 cams
@@ -255,11 +261,12 @@ function renderCompareUI() {
     cb.disabled = full;
     cb.checked = picked;
   }
+  const lbl = (n) => labelByCam.get(n) || n;
   if (compareSel.length === MAX_COMPARE) {
-    comparePicks.innerHTML = `Multi-view <strong>${compareSel[0]}</strong> + <strong>${compareSel[1]}</strong>`;
+    comparePicks.innerHTML = `Multi-view <strong>${lbl(compareSel[0])}</strong> + <strong>${lbl(compareSel[1])}</strong>`;
     compareBar.classList.add('show');
   } else if (compareSel.length === 1) {
-    comparePicks.innerHTML = `Selected <strong>${compareSel[0]}</strong> — pick one more`;
+    comparePicks.innerHTML = `Selected <strong>${lbl(compareSel[0])}</strong> — pick one more`;
     compareBar.classList.add('show');
   } else {
     compareBar.classList.remove('show');

@@ -102,12 +102,12 @@
   <div class="sidebar" id="rangePresets"></div>
   <div class="stages">
     <div class="stage" id="stageL">
-      <div class="cam-label" id="labelL">{{ left }}</div>
+      <div class="cam-label" id="labelL">{{ left_label }}</div>
       <img id="frameL" alt="left" draggable="false">
       <div class="ts-label" id="tsL">--</div>
     </div>
     <div class="stage" id="stageR">
-      <div class="cam-label" id="labelR">{{ right }}</div>
+      <div class="cam-label" id="labelR">{{ right_label }}</div>
       <img id="frameR" alt="right" draggable="false">
       <div class="ts-label" id="tsR">--</div>
     </div>
@@ -149,7 +149,9 @@ const { imgUrl: _imgUrl, thumbUrl: _thumbUrl, fmtTsHuman, fmtMD, fmt12hm, hhmmTo
 const LEFT = {{ left | tojson }};
 const RIGHT = {{ right | tojson }};
 const DAYS = {{ days | tojson }};
-const ALL_CAMS = {{ cameras | tojson }};
+const ALL_CAMS = {{ cameras_public | tojson }};
+const CAM_LABEL_BY_NAME = Object.fromEntries(ALL_CAMS.map(c => [c.name, c.label || c.name]));
+function camLabel(n) { return CAM_LABEL_BY_NAME[n] || n; }
 
 const TICK_MS = 100;
 const ADVANCE_SEC = 30;
@@ -661,7 +663,7 @@ function buildSelectors() {
     sel.innerHTML = '';
     for (const c of ALL_CAMS) {
       const o = document.createElement('option');
-      o.value = c; o.textContent = c;
+      o.value = c.name; o.textContent = c.label || c.name;
       sel.appendChild(o);
     }
   }
@@ -676,13 +678,13 @@ function buildSelectors() {
   leftSel.addEventListener('change', () => {
     const l = leftSel.value;
     let r = rightSel.value;
-    if (r === l) r = ALL_CAMS.find(c => c !== l) || r;
+    if (r === l) r = (ALL_CAMS.find(c => c.name !== l) || {}).name || r;
     navigate(l, r);
   });
   rightSel.addEventListener('change', () => {
     const r = rightSel.value;
     let l = leftSel.value;
-    if (l === r) l = ALL_CAMS.find(c => c !== r) || l;
+    if (l === r) l = (ALL_CAMS.find(c => c.name !== r) || {}).name || l;
     navigate(l, r);
   });
   swapBtn.addEventListener('click', () => navigate(RIGHT, LEFT));
@@ -748,7 +750,7 @@ function activeMirrorCam() { return mirrorSide === 'left' ? cams[0] : cams[1]; }
 
 function applyMirrorUI() {
   const c = activeMirrorCam();
-  mirrorLabel.textContent = `Mirror: ${c.name}`;
+  mirrorLabel.textContent = `Mirror: ${camLabel(c.name)}`;
   cams[0].stageEl.classList.toggle('mirroring', pairedTv && mirrorSide === 'left');
   cams[1].stageEl.classList.toggle('mirroring', pairedTv && mirrorSide === 'right');
   mirrorBtn.classList.toggle('show', pairedTv);
