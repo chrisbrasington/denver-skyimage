@@ -22,7 +22,7 @@
   .rangebar .daymarks span.event-mark { background: #ffd76a; width: 3px; box-shadow: 0 0 4px rgba(255,215,106,0.6); }
   .rangebar .anchors span.event-anchor { color: #ffd76a; font-weight: 600; }
   .stage { position: relative; flex: 1; display: flex; justify-content: center; align-items: center; padding: 0; background: #0b0d12; cursor: pointer; min-height: 0; min-width: 0; }
-  .fs-hint { position: absolute; top: 1rem; right: 1rem; width: 110px; height: 110px; color: #e6e9ef; opacity: 0.45; pointer-events: none; animation: fsPulse 2.4s ease-in-out infinite; filter: drop-shadow(0 0 8px rgba(0,0,0,0.7)); transition: top 0.15s, right 0.15s; }
+  .fs-hint { position: absolute; top: 1rem; left: 1rem; width: 110px; height: 110px; color: #e6e9ef; opacity: 0.45; pointer-events: none; animation: fsPulse 2.4s ease-in-out infinite; filter: drop-shadow(0 0 8px rgba(0,0,0,0.7)); transition: top 0.15s, left 0.15s; }
   .time-label { position: absolute; top: 1rem; right: 1rem; display: block; background: rgba(10,15,20,0.55); border: 2px solid rgba(255,255,255,0.4); border-radius: 14px; padding: 0.9rem 1.5rem; color: #fff; text-shadow: 0 2px 6px rgba(0,0,0,0.7); pointer-events: none; backdrop-filter: blur(4px); letter-spacing: 0.02em; z-index: 50; min-width: 18rem; text-align: right; transition: top 0.15s, right 0.15s; }
   .time-label .descriptor { display: block; font-size: 2.4rem; font-weight: 700; line-height: 1.05; }
   .time-label .ts { display: block; font-size: 1.4rem; opacity: 0.9; margin-top: 0.4rem; font-variant-numeric: tabular-nums; }
@@ -256,13 +256,16 @@ function positionOverlays() {
   if (imgRect.width === 0) return;
   const topPx = imgRect.top - stageRect.top + 16;
   const rightPx = stageRect.right - imgRect.right + 16;
+  const leftPx = imgRect.left - stageRect.left + 16;
+  const switcher = document.getElementById('cameraSwitcher');
+  const switcherH = switcher && switcher.children.length ? switcher.getBoundingClientRect().height + 12 : 0;
   if (fsHint) {
     fsHint.style.top = `${topPx}px`;
-    fsHint.style.right = `${rightPx}px`;
+    fsHint.style.left = `${leftPx}px`;
   }
   if (timeLabel) {
-    timeLabel.style.top = `${topPx}px`;
-    timeLabel.style.right = `${rightPx + 110 + 16}px`;
+    timeLabel.style.top = `${topPx + switcherH}px`;
+    timeLabel.style.right = `${rightPx}px`;
   }
 }
 img.addEventListener('load', positionOverlays);
@@ -965,6 +968,7 @@ async function buildCameraSwitcher() {
       btn.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
       container.appendChild(btn);
     }
+    positionOverlays();
   } catch (e) { console.warn('camera switcher failed', e); }
 }
 
