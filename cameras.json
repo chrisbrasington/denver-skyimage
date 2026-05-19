@@ -3,6 +3,10 @@
     {
       "name": "west",
       "url": "https://econtent.dmns.org/images/skyimage.jpg"
+    },
+    {
+      "name": "downtown",
+      "url": "https://apcd.state.co.us/live_image/chpark.jpg"
     }
   ]
 }
