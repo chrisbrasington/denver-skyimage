@@ -217,13 +217,13 @@ function render(d) {
     `<span style="color:#ffd76a">${appM}%</span> <span style="color:#788;font-size:0.75rem;">app</span> · ` +
     `<span style="color:#8ab4ff">${sysM}%</span> <span style="color:#788;font-size:0.75rem;">sys</span>`;
 
-  document.getElementById('lim-size').textContent = d.limits.max_size_gb;
+  document.getElementById('lim-size').textContent = d.totals.max_size_gb;
   document.getElementById('lim-age').textContent = d.limits.max_age_days;
 
   const sf = document.getElementById('storage-fill');
   setBar(sf, d.totals.size_pct_of_limit);
   document.getElementById('storage-text').textContent =
-    fmtBytes(d.totals.size_bytes) + ' / ' + d.limits.max_size_gb + ' GB (' + d.totals.size_pct_of_limit + '%)';
+    fmtBytes(d.totals.size_bytes) + ' / ' + d.totals.max_size_gb + ' GB (' + d.totals.size_pct_of_limit + '%)';
 
   renderTotalStorage(d);
 
@@ -254,7 +254,7 @@ function render(d) {
       <h3>${c.name}${c.is_default ? ' <span class="tag">default</span>' : ''}</h3>
       <div class="kv">
         <span class="k">Count</span><span class="v">${c.count.toLocaleString()}</span>
-        <span class="k">Size</span><span class="v">${fmtBytes(c.size_bytes)} (${c.size_pct_of_limit}%)</span>
+        <span class="k">Size</span><span class="v">${fmtBytes(c.size_bytes)} / ${d.limits.max_size_gb} GB (${c.size_pct_of_limit}%)</span>
         <span class="k">Oldest</span><span class="v">${fmtTs(c.oldest_ts)}</span>
         <span class="k">Newest</span><span class="v">${fmtTs(c.newest_ts)}</span>
         <span class="k">Last image</span><span class="v ${staleCls}">${fmtDur(c.since_last_seconds)} ago${c.cadence_stale ? ' (stale)' : ''}</span>
@@ -461,7 +461,7 @@ function askDeleteDay(camera, day, count) {
   const agePct = cam.age_pct_of_limit ?? 0;
   const auto = `
     <p style="font-size:1rem;line-height:1.4;color:#ffd76a;margin-top:0.5rem;">
-      Auto-prune already keeps storage under <b>${lim.max_size_gb} GB</b> and images under <b>${lim.max_age_days} days</b>.<br>
+      Auto-prune already keeps storage under <b>${lim.max_size_gb} GB</b> per camera and images under <b>${lim.max_age_days} days</b>.<br>
       Current ${camera}: <b>${sizePct}%</b> of size limit, <b>${agePct}%</b> of age limit.<br>
       You do not have to manually delete unless you want it gone now.
     </p>`;

@@ -931,7 +931,8 @@ def api_status():
         "cameras": cams,
         "totals": {
             "size_bytes": total_size,
-            "size_pct_of_limit": round(total_size / max_size_bytes * 100.0, 1),
+            "size_pct_of_limit": round(total_size / (max_size_bytes * len(CAMERAS)) * 100.0, 1) if CAMERAS else 0.0,
+            "max_size_gb": MAX_SIZE_GB * len(CAMERAS),
         },
         "videos": videos_block,
     }
