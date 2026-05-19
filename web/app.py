@@ -282,6 +282,50 @@ def _read_frame_cached(path: Path) -> bytes:
     return data
 
 
+THUMB_WIDTH = int(os.environ.get("THUMB_WIDTH", "320"))
+THUMB_QUALITY = int(os.environ.get("THUMB_QUALITY", "70"))
+_thumb_locks: dict = {}
+_thumb_locks_guard = threading.Lock()
+
+
+def _thumb_lock_for(key: str) -> threading.Lock:
+    with _thumb_locks_guard:
+        lk = _thumb_locks.get(key)
+        if lk is None:
+            lk = threading.Lock()
+            _thumb_locks[key] = lk
+        return lk
+
+
+def thumb_path_for(src: Path) -> Path:
+    return src.parent / ".thumbs" / src.name
+
+
+def ensure_thumb(src: Path) -> Path:
+    tp = thumb_path_for(src)
+    if tp.exists():
+        return tp
+    lk = _thumb_lock_for(str(tp))
+    with lk:
+        if tp.exists():
+            return tp
+        img = cv2.imread(str(src))
+        if img is None:
+            raise HTTPException(500, "thumb decode failed")
+        h, w = img.shape[:2]
+        if w > THUMB_WIDTH:
+            new_h = int(round(h * (THUMB_WIDTH / w)))
+            img = cv2.resize(img, (THUMB_WIDTH, new_h), interpolation=cv2.INTER_AREA)
+        ok, buf = cv2.imencode(".jpg", img, [int(cv2.IMWRITE_JPEG_QUALITY), THUMB_QUALITY])
+        if not ok:
+            raise HTTPException(500, "thumb encode failed")
+        tp.parent.mkdir(parents=True, exist_ok=True)
+        tmp = tp.with_suffix(tp.suffix + f".tmp.{os.getpid()}.{uuid.uuid4().hex}")
+        tmp.write_bytes(buf.tobytes())
+        os.replace(tmp, tp)
+        return tp
+
+
 def resolve_camera(camera, cam):
     name = camera or cam
     if not name or name == DEFAULT_CAMERA:
@@ -640,7 +684,8 @@ def api_list(
 
 
 @app.get("/image/{name}")
-def image(name: str, download: int = 0, camera: str | None = None, cam: str | None = None):
+def image(name: str, download: int = 0, camera: str | None = None, cam: str | None = None,
+          thumb: int = 0):
     if not TIMESTAMP_RE.match(name):
         raise HTTPException(400, "bad name")
     sub = resolve_camera(camera, cam)
@@ -650,6 +695,10 @@ def image(name: str, download: int = 0, camera: str | None = None, cam: str | No
     if download:
         return FileResponse(p, media_type="image/jpeg",
                             headers={"Content-Disposition": f'attachment; filename="{name}"'})
+    if thumb:
+        tp = ensure_thumb(p)
+        return FileResponse(tp, media_type="image/jpeg",
+                            headers={"Cache-Control": "public, max-age=31536000, immutable"})
     data = _read_frame_cached(p)
     return Response(content=data, media_type="image/jpeg",
                     headers={"Cache-Control": "public, max-age=31536000, immutable"})

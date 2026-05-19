@@ -8,6 +8,11 @@
     return camera ? `/image/${name}?camera=${encodeURIComponent(camera)}` : `/image/${name}`;
   }
 
+  function thumbUrl(name, camera) {
+    const base = `/image/${name}?thumb=1`;
+    return camera ? `${base}&camera=${encodeURIComponent(camera)}` : base;
+  }
+
   function readableTs(iso) {
     const [d, t] = iso.split('T');
     const [, mo, dd] = d.split('-');
@@ -126,9 +131,15 @@
       this.ahead = opts.ahead ?? 60;
       this.behind = opts.behind ?? 30;
       this.cap = opts.cap ?? 600;
+      this.thumbCap = opts.thumbCap ?? 8000;
       this.cache = new Map();
+      this.thumbCache = new Map();
       this.framesRef = null;
       this.indexByName = new Map();
+      this._thumbQueue = [];
+      this._thumbScheduled = false;
+      this._thumbConcurrency = opts.thumbConcurrency ?? 6;
+      this._thumbInFlight = 0;
     }
 
     setFrames(frames) {
@@ -137,6 +148,7 @@
       for (let i = 0; i < frames.length; i++) this.indexByName.set(frames[i].name, i);
       const keep = new Set(frames.map(f => f.name));
       for (const k of [...this.cache.keys()]) if (!keep.has(k)) this.cache.delete(k);
+      for (const k of [...this.thumbCache.keys()]) if (!keep.has(k)) this.thumbCache.delete(k);
     }
 
     _ensure(name) {
@@ -144,6 +156,17 @@
       const im = new Image();
       im.src = imgUrl(name, this.camera);
       this.cache.set(name, im);
+    }
+
+    _ensureThumb(name) {
+      if (this.thumbCache.has(name)) return;
+      const im = new Image();
+      const done = () => { this._thumbInFlight--; this._drainThumbQueue(); };
+      im.addEventListener('load', done, { once: true });
+      im.addEventListener('error', done, { once: true });
+      im.src = thumbUrl(name, this.camera);
+      this.thumbCache.set(name, im);
+      this._thumbInFlight++;
     }
 
     around(idx, rangeLo, rangeHi) {
@@ -155,6 +178,47 @@
         if (i >= 0 && i < frames.length) this._ensure(frames[i].name);
       }
       this._evictByDistance(idx);
+    }
+
+    preloadThumbRange(rangeLo, rangeHi, idx) {
+      const frames = this.framesRef;
+      if (!frames || !frames.length) return;
+      const lo = Math.max(0, rangeLo ?? 0);
+      const hi = Math.min(frames.length - 1, rangeHi ?? frames.length - 1);
+      const center = Math.max(lo, Math.min(hi, idx ?? Math.floor((lo + hi) / 2)));
+      const order = [];
+      const maxR = Math.max(center - lo, hi - center);
+      for (let r = 0; r <= maxR; r++) {
+        if (center - r >= lo) order.push(center - r);
+        if (r > 0 && center + r <= hi) order.push(center + r);
+      }
+      this._thumbQueue = order
+        .map(i => frames[i].name)
+        .filter(name => !this.thumbCache.has(name));
+      this._scheduleThumbDrain();
+    }
+
+    _scheduleThumbDrain() {
+      if (this._thumbScheduled) return;
+      this._thumbScheduled = true;
+      const tick = () => {
+        this._thumbScheduled = false;
+        this._drainThumbQueue();
+      };
+      if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(tick, { timeout: 250 });
+      } else {
+        setTimeout(tick, 16);
+      }
+    }
+
+    _drainThumbQueue() {
+      while (this._thumbQueue.length && this._thumbInFlight < this._thumbConcurrency) {
+        const name = this._thumbQueue.shift();
+        if (!this.thumbCache.has(name)) this._ensureThumb(name);
+      }
+      if (this._thumbQueue.length) this._scheduleThumbDrain();
+      if (this.thumbCache.size > this.thumbCap) this._evictThumbsByDistance();
     }
 
     preloadAll(frames) {
@@ -175,11 +239,38 @@
       }
     }
 
+    _evictThumbsByDistance(idx) {
+      if (this.thumbCache.size <= this.thumbCap) return;
+      const center = idx ?? 0;
+      const entries = [];
+      for (const name of this.thumbCache.keys()) {
+        const i = this.indexByName.get(name);
+        entries.push({ name, dist: i === undefined ? Infinity : Math.abs(i - center) });
+      }
+      entries.sort((a, b) => b.dist - a.dist);
+      while (this.thumbCache.size > this.thumbCap && entries.length) {
+        this.thumbCache.delete(entries.shift().name);
+      }
+    }
+
     ready(i) {
       const frames = this.framesRef;
       if (!frames || i < 0 || i >= frames.length) return false;
       const im = this.cache.get(frames[i].name);
       return !!(im && im.complete && im.naturalWidth > 0);
+    }
+
+    readyThumb(i) {
+      const frames = this.framesRef;
+      if (!frames || i < 0 || i >= frames.length) return false;
+      const im = this.thumbCache.get(frames[i].name);
+      return !!(im && im.complete && im.naturalWidth > 0);
+    }
+
+    thumbSrc(i) {
+      const frames = this.framesRef;
+      if (!frames || i < 0 || i >= frames.length) return null;
+      return thumbUrl(frames[i].name, this.camera);
     }
 
     abortPending() {
@@ -190,11 +281,14 @@
         }
       }
     }
+
+    ensure(name) { this._ensure(name); return this.cache.get(name); }
+    imageFor(name) { return this.cache.get(name); }
   }
 
   window.SkyPlayback = {
     WEEKDAYS, MONTHS,
-    imgUrl,
+    imgUrl, thumbUrl,
     readableTs, formatTs, fmtTsHuman, fmtMD, fmt12hm, hhmmToMin,
     describePartOfDay,
     SKY_STOPS, timeColor, buildGradientFor, frameTimeColor,

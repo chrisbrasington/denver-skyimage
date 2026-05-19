@@ -169,7 +169,7 @@
 <script src="/static/controller.js"></script>
 <script>
 const SP = window.SkyPlayback;
-const { imgUrl: _imgUrl, readableTs, formatTs, fmtTsHuman, fmtMD, fmt12hm, hhmmToMin,
+const { imgUrl: _imgUrl, thumbUrl: _thumbUrl, readableTs, formatTs, fmtTsHuman, fmtMD, fmt12hm, hhmmToMin,
         describePartOfDay, timeColor, buildGradientFor, frameTimeColor, PreloadCache } = SP;
 const SERVER_CAMERA = {% if camera_name %}{{ camera_name | tojson }}{% else %}null{% endif %};
 const urlParams = new URLSearchParams(window.location.search);
@@ -180,8 +180,10 @@ function withCam(url) {
   return url + (url.includes('?') ? '&' : '?') + camQS;
 }
 function imgUrl(name) { return _imgUrl(name, CAMERA); }
-const cache = new PreloadCache({ camera: CAMERA, ahead: 60, behind: 30, cap: 600 });
+function thumbUrl(name) { return _thumbUrl(name, CAMERA); }
+const cache = new PreloadCache({ camera: CAMERA, ahead: 60, behind: 30, cap: 600, thumbCap: 8000 });
 function preloadAround(i) { cache.around(i, rangeLo, rangeHi); }
+function preloadThumbRange() { cache.preloadThumbRange(rangeLo, rangeHi, idx); }
 const FPS = 10;
 const FS_DURATION_MS = 30000;
 const IDLE_MS = 120000;
@@ -710,6 +712,7 @@ function applyRangeUI() {
   if (idx > rangeHi) idx = rangeHi;
   renderThumbs();
   preloadAround(idx);
+  preloadThumbRange();
 }
 
 function resumeFromStart() {
@@ -792,13 +795,37 @@ dual.addEventListener('pointerdown', (e) => {
   dual.addEventListener('pointercancel', onUp);
 });
 
+let _showToken = 0;
 function show(i) {
   if (!frames.length) return;
   idx = Math.max(rangeLo, Math.min(rangeHi, i));
   const f = frames[idx];
-  img.src = imgUrl(f.name);
-  if (img.complete && img.naturalWidth > 0) setLoading(false);
-  else setLoading(true);
+  const token = ++_showToken;
+  const fullUrl = imgUrl(f.name);
+
+  if (cache.ready(idx)) {
+    img.src = fullUrl;
+    setLoading(false);
+  } else {
+    const tUrl = thumbUrl(f.name);
+    img.src = tUrl;
+    setLoading(!cache.readyThumb(idx));
+    if (!dragging) {
+      const fullImg = cache.ensure(f.name);
+      if (fullImg) {
+        const swap = () => {
+          if (token !== _showToken) return;
+          img.src = fullUrl;
+          setLoading(false);
+        };
+        if (fullImg.complete && fullImg.naturalWidth > 0) swap();
+        else {
+          fullImg.addEventListener('load', swap, { once: true });
+          fullImg.addEventListener('error', () => { if (token === _showToken) setLoading(false); }, { once: true });
+        }
+      }
+    }
+  }
   tsLabel.textContent = fmtTsHuman(f.ts);
   renderThumbs();
   updateTimeLabel(f.ts);
