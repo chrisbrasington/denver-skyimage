@@ -803,11 +803,8 @@ function show(i) {
   const token = ++_showToken;
   const fullUrl = imgUrl(f.name);
 
-  if (cache.ready(idx) && !thumbPlayMode) {
+  if (cache.ready(idx)) {
     img.src = fullUrl;
-    setLoading(false);
-  } else if (thumbPlayMode) {
-    img.src = thumbUrl(f.name);
     setLoading(false);
   } else {
     const tUrl = thumbUrl(f.name);
@@ -910,26 +907,10 @@ function applyIdleReset() {
   setPlayBtn('Pause');
 }
 
-let thumbPlayMode = false;
-let fullReadyStreak = 0;
-const THUMB_EXIT_STREAK = 20;
-
 function tick() {
   if (!playing || !frames.length) return;
   const next = idx >= rangeHi ? rangeLo : idx + 1;
-  if (cache.ready(next)) {
-    fullReadyStreak++;
-    if (thumbPlayMode && fullReadyStreak >= THUMB_EXIT_STREAK) thumbPlayMode = false;
-  } else if (cache.readyThumb(next)) {
-    thumbPlayMode = true;
-    fullReadyStreak = 0;
-    preloadAround(next);
-  } else {
-    fullReadyStreak = 0;
-    setLoading(true);
-    preloadAround(next);
-    return;
-  }
+  if (!cache.ready(next)) { setLoading(true); preloadAround(next); return; }
   if (idx >= rangeHi) {
     if (resetPending) {
       resetPending = false;
