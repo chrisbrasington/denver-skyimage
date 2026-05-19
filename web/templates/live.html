@@ -257,15 +257,25 @@ function positionOverlays() {
   const topPx = imgRect.top - stageRect.top + 16;
   const rightPx = stageRect.right - imgRect.right + 16;
   const leftPx = imgRect.left - stageRect.left + 16;
-  const switcher = document.getElementById('cameraSwitcher');
-  const switcherH = switcher && switcher.children.length ? switcher.getBoundingClientRect().height + 12 : 0;
   if (fsHint) {
     fsHint.style.top = `${topPx}px`;
     fsHint.style.left = `${leftPx}px`;
   }
   if (timeLabel) {
-    timeLabel.style.top = `${topPx + switcherH}px`;
+    timeLabel.style.top = `${topPx}px`;
     timeLabel.style.right = `${rightPx}px`;
+  }
+  const switcher = document.getElementById('cameraSwitcher');
+  if (switcher && switcher.children.length) {
+    const tlVisible = timeLabel && getComputedStyle(timeLabel).display !== 'none';
+    if (tlVisible) {
+      const tlRect = timeLabel.getBoundingClientRect();
+      switcher.style.top = `${tlRect.bottom + 12}px`;
+      switcher.style.right = `${window.innerWidth - imgRect.right + 16}px`;
+    } else {
+      switcher.style.top = '';
+      switcher.style.right = '';
+    }
   }
 }
 img.addEventListener('load', positionOverlays);
