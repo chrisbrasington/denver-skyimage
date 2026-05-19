@@ -138,9 +138,9 @@ function cardFor(cam) {
   const card = document.createElement('div');
   card.className = 'card';
   card.innerHTML = `
-    <label class="pick" data-pick title="Select for split view">
+    <label class="pick" data-pick title="Select for multi-view">
       <input type="checkbox" data-cam="${cam}">
-      <span>compare</span>
+      <span>multi-view</span>
     </label>
     <a class="thumb" href="/touch/${encodeURIComponent(cam)}">
       <div class="ph" data-ph>loading…</div>
@@ -236,7 +236,7 @@ for (const cam of CAMERAS) {
   setInterval(() => renderRanges(cam, card), 5 * 60_000);
 }
 
-// Compare picker: select 2 cams for split view
+// Multi-view picker: select 2 cams
 const compareBar = document.getElementById('compareBar');
 const comparePicks = document.getElementById('comparePicks');
 const compareGoBtn = document.getElementById('compareGoBtn');
@@ -256,7 +256,7 @@ function renderCompareUI() {
     cb.checked = picked;
   }
   if (compareSel.length === MAX_COMPARE) {
-    comparePicks.innerHTML = `Compare <strong>${compareSel[0]}</strong> + <strong>${compareSel[1]}</strong>`;
+    comparePicks.innerHTML = `Multi-view <strong>${compareSel[0]}</strong> + <strong>${compareSel[1]}</strong>`;
     compareBar.classList.add('show');
   } else if (compareSel.length === 1) {
     comparePicks.innerHTML = `Selected <strong>${compareSel[0]}</strong> — pick one more`;

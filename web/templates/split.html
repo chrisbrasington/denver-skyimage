@@ -54,6 +54,12 @@
   .rangebar .selected { position: absolute; top: 0; height: 100%; background: transparent; border-radius: 4px; box-shadow: 0 -3px 0 #ffd76a, 0 3px 0 #ffd76a; pointer-events: none; }
   .rangebar .daymarks { position: absolute; top: 12px; left: 0; right: 0; height: 20px; pointer-events: none; }
   .rangebar .daymarks span { position: absolute; top: 0; width: 2px; height: 20px; background: #455; }
+  .rangebar .sunmarks { position: absolute; top: 12px; left: 0; right: 0; height: 20px; pointer-events: none; }
+  .rangebar .sunmarks span { position: absolute; top: 0; width: 3px; height: 20px; transform: translateX(-50%); }
+  .rangebar .sunmarks span.sr { background: #d6a14b; box-shadow: 0 0 5px rgba(214,161,75,0.8); }
+  .rangebar .sunmarks span.ss { background: #c2614e; box-shadow: 0 0 5px rgba(194,97,78,0.8); }
+  .rangebar .anchors span.sr-label { color: #d6a14b; font-weight: 600; }
+  .rangebar .anchors span.ss-label { color: #c2614e; font-weight: 600; }
   .rangebar .thumb { position: absolute; top: 6px; width: 28px; height: 28px; border-radius: 50%; background: var(--thumb-color, #e6e9ef); border: 3px solid #ffd76a; box-shadow: 0 0 0 2px rgba(0,0,0,0.6); transform: translateX(-50%); pointer-events: none; z-index: 2; }
   .rangebar .playhead { position: absolute; top: 0; width: 6px; height: 40px; background: var(--thumb-color, #ffd76a); border-radius: 3px; box-shadow: 0 0 0 2px #000, 0 0 10px rgba(255,215,106,1); transform: translateX(-50%); pointer-events: none; z-index: 3; }
   .thumb-tooltip { position: fixed; transform: translate(-50%, calc(-100% - 50px)); background: rgba(20,24,32,0.97); color: #e6e9ef; padding: 0.55rem 1rem; border-radius: 8px; font-size: 1.05rem; font-weight: 600; white-space: nowrap; pointer-events: none; z-index: 1000; display: none; border: 2px solid #8ab4ff; box-shadow: 0 4px 18px rgba(0,0,0,0.7); font-variant-numeric: tabular-nums; }
@@ -65,12 +71,19 @@
     .sidebar button { width: auto; min-width: 8rem; }
     .stages { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; gap: 2px; padding: 0 0.25rem; }
   }
+
+  .stages { cursor: pointer; }
+  .stages:fullscreen { padding: 0; background: #000; gap: 2px; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
+  .stages:fullscreen .stage { background: #000; }
+  .stages:fullscreen .stage img { width: 100%; height: 100vh; object-fit: contain; box-shadow: none; }
+  .stages:fullscreen .cam-label { font-size: 1.4rem; padding: 0.4rem 0.9rem; top: 1rem; left: 1rem; }
+  .stages:fullscreen .ts-label { font-size: 1.3rem; padding: 0.55rem 0.9rem; bottom: 1rem; right: 1rem; }
 </style>
 </head>
 <body>
 <div class="topbar">
   <strong style="color:#8ab4ff;letter-spacing:0.05em;">SPLIT</strong>
-  <a href="/">← Home</a>
+  <a href="/">← Cameras</a>
   <span class="spacer"></span>
   <label for="leftSel">Left:</label>
   <select id="leftSel"></select>
@@ -107,6 +120,7 @@
         <div class="dual" id="dual">
           <div class="track"><div class="selected" id="selBar"></div></div>
           <div class="daymarks" id="dayMarks"></div>
+          <div class="sunmarks" id="sunMarks"></div>
           <div class="thumb" id="thumbLo"></div>
           <div class="thumb" id="thumbHi"></div>
           <div class="playhead" id="playhead"></div>
@@ -140,6 +154,7 @@ const thumbHi = document.getElementById('thumbHi');
 const playhead = document.getElementById('playhead');
 const selBar = document.getElementById('selBar');
 const dayMarks = document.getElementById('dayMarks');
+const sunMarks = document.getElementById('sunMarks');
 const anchorLabels = document.getElementById('anchorLabels');
 const rangePresets = document.getElementById('rangePresets');
 const thumbTooltip = document.getElementById('thumbTooltip');
@@ -307,6 +322,29 @@ function renderDayMarks() {
     s.style.left = `${tsPct(tsMs)}%`;
     dayMarks.appendChild(s);
   }
+  sunMarks.innerHTML = '';
+  for (const day of Object.keys(sunTimes).sort()) {
+    const sun = sunTimes[day];
+    if (!sun) continue;
+    if (sun.sunrise) {
+      const ts = tsAtDayHHMM(day, hhmmToMin(sun.sunrise));
+      if (ts >= unionLoTs && ts <= unionHiTs) {
+        const m = document.createElement('span');
+        m.className = 'sr';
+        m.style.left = `${tsPct(ts)}%`;
+        sunMarks.appendChild(m);
+      }
+    }
+    if (sun.sunset) {
+      const ts = tsAtDayHHMM(day, hhmmToMin(sun.sunset));
+      if (ts >= unionLoTs && ts <= unionHiTs) {
+        const m = document.createElement('span');
+        m.className = 'ss';
+        m.style.left = `${tsPct(ts)}%`;
+        sunMarks.appendChild(m);
+      }
+    }
+  }
 }
 
 function renderAnchors() {
@@ -318,13 +356,32 @@ function renderAnchors() {
     const [y, mo, dd] = day.split('-').map(Number);
     const ts0 = new Date(y, mo - 1, dd).getTime();
     if (ts0 < unionLoTs - 86400000 || ts0 > unionHiTs + 86400000) continue;
-    const dateLabel = `${mo}/${dd}`;
     const noonTs = new Date(y, mo - 1, dd, 12, 0, 0).getTime();
     if (noonTs >= unionLoTs && noonTs <= unionHiTs) {
       const s = document.createElement('span');
-      s.textContent = dateLabel;
+      s.textContent = `${mo}/${dd}`;
       s.style.left = `${tsPct(noonTs)}%`;
       anchorLabels.appendChild(s);
+    }
+    if (sun.sunrise) {
+      const ts = tsAtDayHHMM(day, hhmmToMin(sun.sunrise));
+      if (ts >= unionLoTs && ts <= unionHiTs) {
+        const s = document.createElement('span');
+        s.className = 'sr-label';
+        s.textContent = `↑${fmt12hm(sun.sunrise)}`;
+        s.style.left = `${tsPct(ts)}%`;
+        anchorLabels.appendChild(s);
+      }
+    }
+    if (sun.sunset) {
+      const ts = tsAtDayHHMM(day, hhmmToMin(sun.sunset));
+      if (ts >= unionLoTs && ts <= unionHiTs) {
+        const s = document.createElement('span');
+        s.className = 'ss-label';
+        s.textContent = `↓${fmt12hm(sun.sunset)}`;
+        s.style.left = `${tsPct(ts)}%`;
+        anchorLabels.appendChild(s);
+      }
     }
   }
 }
@@ -632,6 +689,41 @@ async function reload() {
   for (const c of cams) c.lastShownIdx = -1;
   showAllAt(currentTs);
 }
+
+const stagesEl = document.querySelector('.stages');
+const FS_IDLE_MS = 60000;
+let fsIdleTimer = null;
+
+function exitFullscreen() {
+  if (document.fullscreenElement) (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
+}
+function enterFullscreen() {
+  (stagesEl.requestFullscreen || stagesEl.webkitRequestFullscreen)?.call(stagesEl);
+}
+function toggleFullscreen() {
+  if (document.fullscreenElement) exitFullscreen(); else enterFullscreen();
+}
+function resetFsIdle() {
+  if (!document.fullscreenElement) return;
+  clearTimeout(fsIdleTimer);
+  fsIdleTimer = setTimeout(exitFullscreen, FS_IDLE_MS);
+}
+
+stagesEl.addEventListener('click', toggleFullscreen);
+document.addEventListener('fullscreenchange', () => {
+  if (document.fullscreenElement) resetFsIdle();
+  else { clearTimeout(fsIdleTimer); fsIdleTimer = null; }
+});
+['mousemove', 'touchstart', 'click', 'keydown'].forEach(ev =>
+  window.addEventListener(ev, resetFsIdle, { passive: true }));
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'f' || e.key === 'F') {
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA')) return;
+    e.preventDefault();
+    toggleFullscreen();
+  }
+});
 
 (async () => {
   buildSelectors();
