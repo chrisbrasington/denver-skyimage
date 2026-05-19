@@ -564,6 +564,21 @@ def touch_for_camera(name: str, request: Request, days: int = 2):
                                       {"touch_mode": True, "camera_name": name, "days": max(1, days)})
 
 
+@app.get("/split", response_class=HTMLResponse)
+def split(request: Request, left: str | None = None, right: str | None = None, days: int = 2):
+    cams = CAMERA_NAMES
+    if len(cams) < 2:
+        raise HTTPException(400, "split view needs at least 2 cameras")
+    L = left if left in cams else cams[0]
+    R = right if right in cams else next((c for c in cams if c != L), None)
+    if not R or L == R:
+        raise HTTPException(400, "need two distinct cameras")
+    return TEMPLATES.TemplateResponse(
+        request, "split.html",
+        {"left": L, "right": R, "days": max(1, days), "cameras": cams},
+    )
+
+
 @app.get("/camera/{name}/last-hour", response_class=HTMLResponse)
 def camera_last_hour(name: str, request: Request):
     _check_camera_name(name)
