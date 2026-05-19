@@ -17,6 +17,11 @@
   .topbar label { font-size: 0.85rem; color: #aab; text-transform: uppercase; letter-spacing: 0.06em; }
   .topbar .swap { background: #1f2630; color: #ffd76a; border: 1px solid #444; border-radius: 6px; padding: 0.45rem 0.7rem; cursor: pointer; font-size: 1.1rem; font-family: inherit; }
   .topbar .swap:active { background: #2a3340; }
+  .topbar .mirror { background: #14241a; color: #7fd17a; border: 1px solid #2a5a3a; border-radius: 6px; padding: 0.45rem 0.7rem; cursor: pointer; font-size: 0.9rem; font-family: inherit; display: none; align-items: center; gap: 0.4rem; }
+  .topbar .mirror.show { display: inline-flex; }
+  .topbar .mirror:active { background: #1c3024; }
+  .topbar .mirror .dot { width: 8px; height: 8px; border-radius: 50%; background: #7fd17a; box-shadow: 0 0 6px #7fd17a; }
+  .stage.mirroring { outline: 3px solid #7fd17a; outline-offset: -3px; }
 
   .main { flex: 1; display: flex; align-items: stretch; min-height: 0; }
   .sidebar { position: relative; z-index: 10; display: flex; flex-direction: column; justify-content: flex-end; gap: 0.5rem; padding: 0.75rem 0 0.75rem 0.75rem; min-width: 13rem; max-width: 16rem; overflow-y: auto; }
@@ -90,6 +95,7 @@
   <button class="swap" id="swapBtn" title="Swap cameras">⇄</button>
   <label for="rightSel">Right:</label>
   <select id="rightSel"></select>
+  <button class="mirror" id="mirrorBtn" title="Swap which camera mirrors to TV"><span class="dot"></span><span id="mirrorLabel">Mirror: --</span> ⇄</button>
 </div>
 <div class="thumb-tooltip" id="thumbTooltip"></div>
 <div class="main">
@@ -134,6 +140,7 @@
   </div>
 </div>
 <script src="/static/playback.js"></script>
+<script src="/static/controller.js"></script>
 <script>
 const SP = window.SkyPlayback;
 const { imgUrl: _imgUrl, thumbUrl: _thumbUrl, fmtTsHuman, fmtMD, fmt12hm, hhmmToMin,
@@ -506,6 +513,7 @@ function setPlayBtn(text) { playBtn.textContent = text; }
 function showAllAt(tsMs) {
   for (const c of cams) showCamAt(c, tsMs);
   renderPlayhead();
+  publishMirror();
 }
 
 function showCamAt(c, tsMs) {
@@ -725,11 +733,75 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+// Mirror-to-TV: publish one selected cam's current frame to paired TV
+const MIRROR_KEY = 'split_mirror_side';
+let mirrorSide = 'left';
+try {
+  const stored = localStorage.getItem(MIRROR_KEY);
+  if (stored === 'left' || stored === 'right') mirrorSide = stored;
+} catch {}
+let pairedTv = false;
+const mirrorBtn = document.getElementById('mirrorBtn');
+const mirrorLabel = document.getElementById('mirrorLabel');
+
+function activeMirrorCam() { return mirrorSide === 'left' ? cams[0] : cams[1]; }
+
+function applyMirrorUI() {
+  const c = activeMirrorCam();
+  mirrorLabel.textContent = `Mirror: ${c.name}`;
+  cams[0].stageEl.classList.toggle('mirroring', pairedTv && mirrorSide === 'left');
+  cams[1].stageEl.classList.toggle('mirroring', pairedTv && mirrorSide === 'right');
+  mirrorBtn.classList.toggle('show', pairedTv);
+}
+
+function publishMirror() {
+  if (!pairedTv || !window.SkyController) return;
+  const c = activeMirrorCam();
+  if (!c.frames.length || c.lastShownIdx < 0) return;
+  const f = c.frames[c.lastShownIdx];
+  if (!f) return;
+  window.SkyController.publish({
+    frame: f.name,
+    ts: f.ts,
+    camera: c.name,
+    playing,
+    range_lo_ts: new Date(userLoTs).toISOString().slice(0, 19),
+    range_hi_ts: new Date(userHiTs).toISOString().slice(0, 19),
+  });
+}
+
+mirrorBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  mirrorSide = mirrorSide === 'left' ? 'right' : 'left';
+  try { localStorage.setItem(MIRROR_KEY, mirrorSide); } catch {}
+  applyMirrorUI();
+  publishMirror();
+});
+
+async function refreshPairStatus(myId) {
+  try {
+    const r = await fetch('/api/sessions', { cache: 'no-store' });
+    if (!r.ok) return;
+    const data = await r.json();
+    const me = (data.touches || []).find(t => t.id === myId);
+    const nowPaired = !!me?.paired_tv_id;
+    if (nowPaired !== pairedTv) {
+      pairedTv = nowPaired;
+      applyMirrorUI();
+      if (pairedTv) publishMirror();
+    }
+  } catch {}
+}
+
 (async () => {
   buildSelectors();
   await loadSunTimes();
   await reload();
   restartTimer();
+  let myId = null;
+  if (window.SkyController) myId = await window.SkyController.init(activeMirrorCam().name);
+  await refreshPairStatus(myId);
+  setInterval(() => refreshPairStatus(myId), 3000);
   setInterval(async () => { await loadSunTimes(); await reload(); }, 30000);
 })();
 </script>
