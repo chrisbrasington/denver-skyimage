@@ -8,3 +8,4 @@ events
 *.log
 __pycache__
 .env
+docs
