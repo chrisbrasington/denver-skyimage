@@ -81,7 +81,7 @@
   .rangebar .thumb-label.stacked { top: calc(100% + 36px); }
   .touch-hint-bar { display: flex; flex-direction: column; align-items: stretch; width: 100%; gap: 0.4rem; margin-top: 44px; pointer-events: none; }
   .rangebar:has(.thumb-label.stacked) .touch-hint-bar { margin-top: 74px; }
-  .brace-graphic { position: relative; width: 100%; height: 14px; border-left: 3px solid #ffd76a; border-right: 3px solid #ffd76a; border-bottom: 3px solid #ffd76a; border-radius: 0 0 12px 12px; filter: drop-shadow(0 0 6px rgba(255,215,106,0.45)); }
+  .brace-graphic { position: relative; height: 14px; border-left: 3px solid #ffd76a; border-right: 3px solid #ffd76a; border-bottom: 3px solid #ffd76a; border-radius: 0 0 12px 12px; filter: drop-shadow(0 0 6px rgba(255,215,106,0.45)); transition: margin-left 0.05s linear, margin-right 0.05s linear; }
   .brace-graphic::after { content: ''; position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-top: 12px solid #ffd76a; filter: drop-shadow(0 0 4px rgba(255,215,106,0.5)); }
   .touch-hint { text-align: center; color: #ffd76a; font-size: 1.3rem; font-weight: 700; letter-spacing: 0.04em; animation: hintPulse 2.4s ease-in-out infinite; animation-delay: 1.2s; margin-top: 0.6rem; }
   @keyframes labelPulse {
@@ -277,6 +277,7 @@ const rangePresets = document.getElementById('rangePresets');
 const thumbTooltip = document.getElementById('thumbTooltip');
 const thumbLabelLo = document.getElementById('thumbLabelLo');
 const thumbLabelHi = document.getElementById('thumbLabelHi');
+const braceGraphic = document.querySelector('.brace-graphic');
 const fsHint = document.querySelector('.fs-hint');
 const timeDescriptor = document.getElementById('timeDescriptor');
 const timeTs = document.getElementById('timeTs');
@@ -589,6 +590,12 @@ function renderThumbs() {
     thumbLabelLo.style.left = frameToPct(rangeLo) + '%';
     thumbLabelHi.style.left = frameToPct(rangeHi) + '%';
     resolveLabelCollision();
+  }
+  if (braceGraphic) {
+    const loPct = frameToPct(rangeLo);
+    const hiPct = frameToPct(rangeHi);
+    braceGraphic.style.marginLeft = loPct + '%';
+    braceGraphic.style.marginRight = (100 - hiPct) + '%';
   }
 }
 function resolveLabelCollision() {
