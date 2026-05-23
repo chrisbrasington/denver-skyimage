@@ -70,6 +70,20 @@
   .event-dialog::after { content: ''; position: absolute; left: 50%; bottom: -10px; transform: translateX(-50%); border: 8px solid transparent; border-top-color: #ffd76a; }
   .thumb-tooltip.show { display: block; }
 
+  .rangebar .thumb-label { position: absolute; top: -28px; transform: translateX(-50%); background: rgba(20,24,32,0.92); color: #ffd76a; border: 2px solid #ffd76a; border-radius: 6px; padding: 0.2rem 0.7rem; font-weight: 700; font-size: 1.05rem; white-space: nowrap; pointer-events: none; z-index: 4; box-shadow: 0 2px 8px rgba(0,0,0,0.55); animation: labelPulse 2.4s ease-in-out infinite; }
+  .rangebar .thumb-label.stacked { top: -56px; }
+  .touch-hint { flex: 1; text-align: center; color: #ffd76a; font-size: 1.3rem; font-weight: 700; letter-spacing: 0.04em; animation: hintPulse 2.4s ease-in-out infinite; animation-delay: 1.2s; }
+  @keyframes labelPulse {
+    0%, 100% { opacity: 0.78; transform: translateX(-50%) scale(0.97); }
+    50%      { opacity: 1; transform: translateX(-50%) scale(1.04); }
+  }
+  @keyframes hintPulse {
+    0%, 100% { opacity: 0.7; }
+    50%      { opacity: 1; }
+  }
+  body:not(.show-instructions) .thumb-label,
+  body:not(.show-instructions) .touch-hint { display: none; }
+
   @media (max-width: 768px) {
     body.touch-mode .time-label,
     body.touch-mode .fs-hint { display: none; }
@@ -93,6 +107,9 @@
     body.touch-mode .rangebar .playhead { top: 2px; width: 8px; height: 60px; }
     body.touch-mode .rangebar .anchors { font-size: 0.75rem; }
     body.touch-mode .rangebar .ticks { font-size: 0.85rem; }
+    body.touch-mode .rangebar .thumb-label { top: -32px; font-size: 0.95rem; padding: 0.15rem 0.55rem; }
+    body.touch-mode .rangebar .thumb-label.stacked { top: -60px; }
+    body.touch-mode .touch-hint { font-size: 1rem; }
   }
 </style>
 </head>
@@ -156,6 +173,10 @@
           <div class="thumb" id="thumbLo"></div>
           <div class="thumb" id="thumbHi"></div>
           <div class="playhead" id="playhead"></div>
+          {% if touch_mode %}
+          <div class="thumb-label thumb-label-lo" id="thumbLabelLo">▼ Start</div>
+          <div class="thumb-label thumb-label-hi" id="thumbLabelHi">▼ End</div>
+          {% endif %}
         </div>
       </div>
     </div>
@@ -163,6 +184,7 @@
   <div class="row">
     {% if not touch_mode %}<button id="playBtn">Pause</button>{% endif %}
     <span class="ts" id="tsLabel">--</span>
+    {% if touch_mode %}<span class="touch-hint" id="touchHint">Touch &amp; drag to explore time</span>{% endif %}
   </div>
 </div>
 <script src="/static/playback.js"></script>
@@ -174,6 +196,8 @@ const { imgUrl: _imgUrl, thumbUrl: _thumbUrl, readableTs, formatTs, fmtTsHuman, 
 const SERVER_CAMERA = {% if camera_name %}{{ camera_name | tojson }}{% else %}null{% endif %};
 const urlParams = new URLSearchParams(window.location.search);
 const CAMERA = SERVER_CAMERA || urlParams.get('camera') || urlParams.get('cam') || '';
+const instructionsOn = !['false', '0'].includes((urlParams.get('instruction') || '').toLowerCase());
+if (instructionsOn) document.body.classList.add('show-instructions');
 const camQS = CAMERA ? `camera=${encodeURIComponent(CAMERA)}` : '';
 function withCam(url) {
   if (!CAMERA) return url;
@@ -230,6 +254,8 @@ const dayMarks = document.getElementById('dayMarks');
 const anchorLabels = document.getElementById('anchorLabels');
 const rangePresets = document.getElementById('rangePresets');
 const thumbTooltip = document.getElementById('thumbTooltip');
+const thumbLabelLo = document.getElementById('thumbLabelLo');
+const thumbLabelHi = document.getElementById('thumbLabelHi');
 const fsHint = document.querySelector('.fs-hint');
 const timeDescriptor = document.getElementById('timeDescriptor');
 const timeTs = document.getElementById('timeTs');
@@ -538,7 +564,25 @@ function renderThumbs() {
   thumbLo.style.setProperty('--thumb-color', frameTimeColor(frames, rangeLo));
   thumbHi.style.setProperty('--thumb-color', frameTimeColor(frames, rangeHi));
   playhead.style.setProperty('--thumb-color', frameTimeColor(frames, idx));
+  if (thumbLabelLo && thumbLabelHi) {
+    thumbLabelLo.style.left = frameToPct(rangeLo) + '%';
+    thumbLabelHi.style.left = frameToPct(rangeHi) + '%';
+    resolveLabelCollision();
+  }
 }
+function resolveLabelCollision() {
+  if (!thumbLabelLo || !thumbLabelHi || !dual) return;
+  const dualW = dual.clientWidth;
+  if (!dualW || frames.length < 2) return;
+  const total = frames.length - 1;
+  const loPx = (rangeLo / total) * dualW;
+  const hiPx = (rangeHi / total) * dualW;
+  const loHalf = thumbLabelLo.offsetWidth / 2;
+  const hiHalf = thumbLabelHi.offsetWidth / 2;
+  const overlap = (loPx + loHalf + 8) > (hiPx - hiHalf);
+  thumbLabelHi.classList.toggle('stacked', overlap);
+}
+window.addEventListener('resize', resolveLabelCollision);
 function updateThumbColors() { renderThumbs(); }
 
 let events = [];

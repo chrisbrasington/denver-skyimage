@@ -3,6 +3,7 @@ name: denver-skyimage
 services:
   capture:
     build: ./capture
+    image: valhalla:5000/denver-skyimage-capture:latest
     restart: unless-stopped
     volumes:
       - ./config.yaml:/config/config.yaml:ro,z
@@ -11,6 +12,7 @@ services:
 
   web:
     build: ./web
+    image: valhalla:5000/denver-skyimage-web:latest
     restart: unless-stopped
     ports:
       - "${APP_PORT:-8000}:8000"
@@ -26,6 +28,7 @@ services:
 
   videogen:
     build: ./videogen
+    image: valhalla:5000/denver-skyimage-videogen:latest
     restart: unless-stopped
     volumes:
       - ./cameras.json:/config/cameras.json:ro,z
