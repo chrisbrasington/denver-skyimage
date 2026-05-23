@@ -83,7 +83,7 @@
   .rangebar:has(.thumb-label.stacked) .touch-hint-bar { margin-top: 74px; }
   .brace-graphic { position: relative; height: 14px; border-left: 3px solid #ffd76a; border-right: 3px solid #ffd76a; border-bottom: 3px solid #ffd76a; border-radius: 0 0 12px 12px; filter: drop-shadow(0 0 6px rgba(255,215,106,0.45)); transition: margin-left 0.05s linear, margin-right 0.05s linear; }
   .brace-graphic::after { content: ''; position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-top: 12px solid #ffd76a; filter: drop-shadow(0 0 4px rgba(255,215,106,0.5)); }
-  .touch-hint { text-align: center; color: #ffd76a; font-size: 1.3rem; font-weight: 700; letter-spacing: 0.04em; animation: hintPulse 2.4s ease-in-out infinite; animation-delay: 1.2s; margin-top: 0.6rem; }
+  .touch-hint { align-self: flex-start; width: max-content; max-width: 100%; position: relative; color: #ffd76a; font-size: 1.3rem; font-weight: 700; letter-spacing: 0.04em; animation: hintPulse 2.4s ease-in-out infinite; animation-delay: 1.2s; margin-top: 0.6rem; white-space: nowrap; }
   @keyframes labelPulse {
     0%, 100% { opacity: 0.78; transform: translateX(-50%) scale(0.97); }
     50%      { opacity: 1; transform: translateX(-50%) scale(1.04); }
@@ -197,7 +197,7 @@
         {% if touch_mode %}
         <div class="touch-hint-bar" id="touchHintBar">
           <div class="brace-graphic" aria-hidden="true"></div>
-          <span class="touch-hint">Touch &amp; drag to explore time</span>
+          <span class="touch-hint" id="touchHint">Touch &amp; drag to explore time</span>
         </div>
         {% endif %}
       </div>
@@ -278,6 +278,7 @@ const thumbTooltip = document.getElementById('thumbTooltip');
 const thumbLabelLo = document.getElementById('thumbLabelLo');
 const thumbLabelHi = document.getElementById('thumbLabelHi');
 const braceGraphic = document.querySelector('.brace-graphic');
+const touchHint = document.getElementById('touchHint');
 const fsHint = document.querySelector('.fs-hint');
 const timeDescriptor = document.getElementById('timeDescriptor');
 const timeTs = document.getElementById('timeTs');
@@ -596,6 +597,18 @@ function renderThumbs() {
     const hiPct = frameToPct(rangeHi);
     braceGraphic.style.marginLeft = loPct + '%';
     braceGraphic.style.marginRight = (100 - hiPct) + '%';
+    if (touchHint) {
+      const mid = (loPct + hiPct) / 2;
+      touchHint.style.left = mid + '%';
+      touchHint.style.transform = 'translateX(-50%)';
+      const rect = touchHint.getBoundingClientRect();
+      const vw = window.innerWidth;
+      const m = 12;
+      let shift = 0;
+      if (rect.left < m) shift = m - rect.left;
+      else if (rect.right > vw - m) shift = vw - m - rect.right;
+      if (shift !== 0) touchHint.style.transform = `translateX(calc(-50% + ${shift}px))`;
+    }
   }
 }
 function resolveLabelCollision() {
@@ -610,7 +623,7 @@ function resolveLabelCollision() {
   const overlap = (loPx + loHalf + 8) > (hiPx - hiHalf);
   thumbLabelHi.classList.toggle('stacked', overlap);
 }
-window.addEventListener('resize', resolveLabelCollision);
+window.addEventListener('resize', renderThumbs);
 function updateThumbColors() { renderThumbs(); }
 
 let events = [];
