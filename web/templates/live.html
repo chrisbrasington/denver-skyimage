@@ -77,11 +77,10 @@
   .event-dialog::after { content: ''; position: absolute; left: 50%; bottom: -10px; transform: translateX(-50%); border: 8px solid transparent; border-top-color: #ffd76a; }
   .thumb-tooltip.show { display: block; }
 
-  .rangebar .thumb-label { position: absolute; top: calc(100% + 6px); transform: translateX(-50%); background: rgba(20,24,32,0.92); color: #ffd76a; border: 2px solid #ffd76a; border-radius: 6px; padding: 0.2rem 0.7rem; font-weight: 700; font-size: 1.05rem; white-space: nowrap; pointer-events: none; z-index: 4; box-shadow: 0 2px 8px rgba(0,0,0,0.55); animation: labelPulse 2.4s ease-in-out infinite; }
-  .rangebar .thumb-label.stacked { top: calc(100% + 36px); }
-  .touch-hint-bar { display: flex; flex-direction: column; align-items: stretch; width: 100%; gap: 0.4rem; margin-top: 74px; pointer-events: none; }
-  .brace-graphic { position: relative; height: 14px; border-left: 3px solid #ffd76a; border-right: 3px solid #ffd76a; border-bottom: 3px solid #ffd76a; border-radius: 0 0 12px 12px; filter: drop-shadow(0 0 6px rgba(255,215,106,0.45)); transition: margin-left 0.05s linear, margin-right 0.05s linear; }
-  .brace-graphic::after { content: ''; position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-top: 12px solid #ffd76a; filter: drop-shadow(0 0 4px rgba(255,215,106,0.5)); }
+  .rangebar .thumb-label { position: absolute; top: calc(100% + 4px); transform: translateX(-50%); background: rgba(20,24,32,0.92); color: #ffd76a; border: 2px solid #ffd76a; border-radius: 6px; padding: 0.15rem 0.6rem; font-weight: 700; font-size: 1rem; white-space: nowrap; pointer-events: none; z-index: 4; box-shadow: 0 2px 8px rgba(0,0,0,0.55); animation: labelPulse 2.4s ease-in-out infinite; }
+  .touch-hint-bar { display: flex; flex-direction: column; align-items: stretch; width: 100%; gap: 0.3rem; margin-top: 30px; pointer-events: none; }
+  .brace-graphic { position: relative; height: 10px; border-left: 3px solid #ffd76a; border-right: 3px solid #ffd76a; border-bottom: 3px solid #ffd76a; border-radius: 0 0 10px 10px; filter: drop-shadow(0 0 6px rgba(255,215,106,0.45)); transition: margin-left 0.05s linear, margin-right 0.05s linear; }
+  .brace-graphic::after { content: ''; position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-top: 10px solid #ffd76a; filter: drop-shadow(0 0 4px rgba(255,215,106,0.5)); }
   .touch-hint { position: absolute; bottom: 0.3rem; left: 0; color: #ffd76a; font-size: 1.3rem; font-weight: 700; letter-spacing: 0.04em; animation: hintPulse 2.4s ease-in-out infinite; animation-delay: 1.2s; white-space: nowrap; pointer-events: none; }
   @keyframes labelPulse {
     0%, 100% { opacity: 0.78; transform: translateX(-50%) scale(0.97); }
@@ -94,7 +93,7 @@
   body:not(.show-instructions) .thumb-label,
   body:not(.show-instructions) .touch-hint-bar,
   body:not(.show-instructions) .touch-hint { display: none; }
-  body.show-instructions .bottombar { padding-bottom: 2.5rem; }
+  body.show-instructions .bottombar { padding-bottom: 1.8rem; }
 
   @media (max-width: 768px) {
     body.touch-mode .time-label,
@@ -119,12 +118,10 @@
     body.touch-mode .rangebar .playhead { top: 2px; width: 8px; height: 60px; }
     body.touch-mode .rangebar .anchors { font-size: 0.75rem; }
     body.touch-mode .rangebar .ticks { font-size: 0.85rem; }
-    body.touch-mode .rangebar .thumb-label { top: calc(100% + 6px); font-size: 0.95rem; padding: 0.15rem 0.55rem; }
-    body.touch-mode .rangebar .thumb-label.stacked { top: calc(100% + 34px); }
-    body.touch-mode .touch-hint-bar { margin-top: 66px; gap: 0.3rem; }
-    body.touch-mode .brace-graphic { height: 10px; border-width: 2px; border-radius: 0 0 8px 8px; }
+    body.touch-mode .rangebar .thumb-label { top: calc(100% + 4px); font-size: 0.9rem; padding: 0.12rem 0.5rem; }
+    body.touch-mode .touch-hint-bar { margin-top: 26px; gap: 0.25rem; }
+    body.touch-mode .brace-graphic { height: 8px; border-width: 2px; border-radius: 0 0 8px 8px; }
     body.touch-mode .brace-graphic::after { border-left-width: 6px; border-right-width: 6px; border-top-width: 9px; bottom: -8px; }
-    body.touch-mode .touch-hint { font-size: 1rem; margin-top: 0.5rem; }
     body.touch-mode .touch-hint { font-size: 1rem; }
   }
 </style>
@@ -589,9 +586,7 @@ function renderThumbs() {
   if (thumbLabelLo && thumbLabelHi) {
     thumbLabelLo.style.left = frameToPct(rangeLo) + '%';
     thumbLabelHi.style.left = frameToPct(rangeHi) + '%';
-    clampLabelToViewport(thumbLabelLo, rangeLo);
-    clampLabelToViewport(thumbLabelHi, rangeHi);
-    resolveLabelCollision();
+    positionThumbLabels();
   }
   if (braceGraphic) {
     const loPct = frameToPct(rangeLo);
@@ -611,34 +606,32 @@ function renderThumbs() {
     }
   }
 }
-function clampLabelToViewport(el, frameIdx) {
-  if (!el || !dual) return;
-  el.style.marginLeft = '0px';
+function positionThumbLabels() {
+  if (!thumbLabelLo || !thumbLabelHi || !dual) return;
+  thumbLabelLo.style.marginLeft = '0px';
+  thumbLabelHi.style.marginLeft = '0px';
   const dualRect = dual.getBoundingClientRect();
   if (!dualRect.width || frames.length < 2) return;
-  const pct = frameToPct(frameIdx) / 100;
-  const labelW = el.offsetWidth;
-  const centerVp = dualRect.left + pct * dualRect.width;
-  const leftVp = centerVp - labelW / 2;
-  const rightVp = centerVp + labelW / 2;
+  const loW = thumbLabelLo.offsetWidth;
+  const hiW = thumbLabelHi.offsetWidth;
+  const loCenter = dualRect.left + (frameToPct(rangeLo) / 100) * dualRect.width;
+  const hiCenter = dualRect.left + (frameToPct(rangeHi) / 100) * dualRect.width;
+  const gap = 6;
+  let loShift = 0, hiShift = 0;
+  const overlap = (loCenter + loShift + loW / 2 + gap) - (hiCenter + hiShift - hiW / 2);
+  if (overlap > 0) { loShift = -overlap / 2; hiShift = overlap / 2; }
   const vw = window.innerWidth;
   const m = 18;
-  let shift = 0;
-  if (leftVp < m) shift = m - leftVp;
-  else if (rightVp > vw - m) shift = vw - m - rightVp;
-  if (shift) el.style.marginLeft = shift + 'px';
-}
-function resolveLabelCollision() {
-  if (!thumbLabelLo || !thumbLabelHi || !dual) return;
-  const dualW = dual.clientWidth;
-  if (!dualW || frames.length < 2) return;
-  const total = frames.length - 1;
-  const loPx = (rangeLo / total) * dualW;
-  const hiPx = (rangeHi / total) * dualW;
-  const loHalf = thumbLabelLo.offsetWidth / 2;
-  const hiHalf = thumbLabelHi.offsetWidth / 2;
-  const overlap = (loPx + loHalf + 8) > (hiPx - hiHalf);
-  thumbLabelHi.classList.toggle('stacked', overlap);
+  const loLeft = loCenter + loShift - loW / 2;
+  const loRight = loCenter + loShift + loW / 2;
+  if (loLeft < m) loShift += m - loLeft;
+  else if (loRight > vw - m) loShift += vw - m - loRight;
+  const hiLeft = hiCenter + hiShift - hiW / 2;
+  const hiRight = hiCenter + hiShift + hiW / 2;
+  if (hiLeft < m) hiShift += m - hiLeft;
+  else if (hiRight > vw - m) hiShift += vw - m - hiRight;
+  thumbLabelLo.style.marginLeft = loShift + 'px';
+  thumbLabelHi.style.marginLeft = hiShift + 'px';
 }
 window.addEventListener('resize', renderThumbs);
 function updateThumbColors() { renderThumbs(); }
