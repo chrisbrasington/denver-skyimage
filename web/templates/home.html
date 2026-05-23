@@ -124,7 +124,7 @@ const CAMERAS = {{ cameras_public | tojson }};
 const grid = document.getElementById('grid');
 
 function imgUrl(cam, name) {
-  return `/image/${encodeURIComponent(name)}?camera=${encodeURIComponent(cam)}`;
+  return `/image/${encodeURIComponent(name)}?camera=${encodeURIComponent(cam)}&thumb=1`;
 }
 
 function fmtTs(iso) {
@@ -154,7 +154,7 @@ function cardFor(cam) {
     <div class="touch-ranges" data-ranges>
       <div class="empty">loading days…</div>
     </div>
-    <div class="actions">
+    <div class="actions admin-hidden">
       <a href="/touch/${encodeURIComponent(name)}/last-hour">Last hour</a>
       <a href="/last/${encodeURIComponent(name)}">Last image</a>
       <a href="/camera/${encodeURIComponent(name)}">Admin / TV</a>
@@ -460,6 +460,8 @@ overlay.addEventListener('click', (e) => { if (e.target === overlay) closePairOv
   function reveal() {
     document.getElementById('topHeader').classList.remove('admin-hidden');
     document.getElementById('pairBanner').classList.remove('admin-hidden');
+    document.querySelectorAll('.card .actions.admin-hidden')
+      .forEach(el => el.classList.remove('admin-hidden'));
   }
   function openKeypad() {
     if (keypadOpen || !window.AdminKeypad) return;
