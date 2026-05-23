@@ -41,7 +41,7 @@
   .img-loader .label { font-size: 1.15rem; font-weight: 700; color: #ffd76a; letter-spacing: 0.08em; text-transform: uppercase; }
   @keyframes imgSpin { to { transform: rotate(360deg); } }
 
-  .bottombar { position: relative; background: #0b0d12; border-top: 2px solid #222; padding: 1.25rem 1.5rem 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+  .bottombar { position: relative; background: #0b0d12; border-top: 2px solid #222; padding: 0.5rem 1.5rem 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
   .row { display: flex; gap: 1.25rem; align-items: center; }
   .row .slot { flex: 1; min-width: 0; }
   .slabel { font-size: 1.4rem; color: #8ab4ff; min-width: 9rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
@@ -50,10 +50,10 @@
   .ts { font-variant-numeric: tabular-nums; min-width: 22ch; font-size: 1.3rem; }
 
   .rangebar { width: 100%; }
-  .rangebar .ticks { display: flex; justify-content: space-between; font-size: 1.1rem; color: #aab; margin-bottom: 0.4rem; font-variant-numeric: tabular-nums; font-weight: 600; }
-  .rangebar .anchors { position: relative; height: 22px; font-size: 0.95rem; color: #99a; font-variant-numeric: tabular-nums; pointer-events: none; }
+  .rangebar .ticks { display: flex; justify-content: space-between; font-size: 1.1rem; color: #aab; margin-bottom: 0.15rem; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .rangebar .anchors { position: relative; height: 18px; font-size: 0.9rem; color: #99a; font-variant-numeric: tabular-nums; pointer-events: none; }
   .rangebar .anchors span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
-  .rangebar .dual { position: relative; height: 48px; touch-action: none; cursor: pointer; }
+  .rangebar .dual { position: relative; height: 48px; touch-action: none; cursor: pointer; z-index: 5; }
   .rangebar .track { position: absolute; top: 20px; left: 0; right: 0; height: 8px; background: #1f2630; border-radius: 4px; pointer-events: none; }
   .rangebar .selected { position: absolute; top: 0; height: 100%; background: transparent; border-radius: 4px; box-shadow: 0 -3px 0 #ffd76a, 0 3px 0 #ffd76a; pointer-events: none; }
   .rangebar .daymarks { position: absolute; top: 14px; left: 0; right: 0; height: 20px; pointer-events: none; }
@@ -77,11 +77,14 @@
   .event-dialog::after { content: ''; position: absolute; left: 50%; bottom: -10px; transform: translateX(-50%); border: 8px solid transparent; border-top-color: #ffd76a; }
   .thumb-tooltip.show { display: block; }
 
-  .rangebar .thumb-label { position: absolute; top: calc(100% + 4px); transform: translateX(-50%); background: rgba(20,24,32,0.92); color: #ffd76a; border: 2px solid #ffd76a; border-radius: 6px; padding: 0.15rem 0.6rem; font-weight: 700; font-size: 1rem; white-space: nowrap; pointer-events: none; z-index: 4; box-shadow: 0 2px 8px rgba(0,0,0,0.55); animation: labelPulse 2.4s ease-in-out infinite; }
+  .rangebar .thumb-label { position: absolute; top: calc(100% + 4px); transform: translateX(-50%); background: rgba(20,24,32,0.92); color: #ffd76a; border: 2px solid #ffd76a; border-radius: 6px; padding: 0.15rem 0.6rem; font-weight: 700; font-size: 1rem; white-space: nowrap; pointer-events: auto; cursor: grab; touch-action: none; z-index: 4; box-shadow: 0 2px 8px rgba(0,0,0,0.55); animation: labelPulse 2.4s ease-in-out infinite; }
+  .rangebar .thumb-label:active { cursor: grabbing; }
+  .hit-zone { position: fixed; background: transparent; cursor: grab; touch-action: none; z-index: 3; }
+  .hit-zone:active { cursor: grabbing; }
   .touch-hint-bar { display: flex; flex-direction: column; align-items: stretch; width: 100%; gap: 0.3rem; margin-top: 30px; pointer-events: none; }
   .brace-graphic { position: relative; height: 10px; border-left: 3px solid #ffd76a; border-right: 3px solid #ffd76a; border-bottom: 3px solid #ffd76a; border-radius: 0 0 10px 10px; filter: drop-shadow(0 0 6px rgba(255,215,106,0.45)); transition: margin-left 0.05s linear, margin-right 0.05s linear; }
   .brace-graphic::after { content: ''; position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-top: 10px solid #ffd76a; filter: drop-shadow(0 0 4px rgba(255,215,106,0.5)); }
-  .touch-hint { position: absolute; bottom: 0.3rem; left: 0; color: #ffd76a; font-size: 1.3rem; font-weight: 700; letter-spacing: 0.04em; animation: hintPulse 2.4s ease-in-out infinite; animation-delay: 1.2s; white-space: nowrap; pointer-events: none; }
+  .touch-hint { position: absolute; bottom: 0.15rem; left: 0; color: #ffd76a; font-size: 1.3rem; font-weight: 700; letter-spacing: 0.04em; animation: hintPulse 2.4s ease-in-out infinite; animation-delay: 1.2s; white-space: nowrap; pointer-events: none; }
   @keyframes labelPulse {
     0%, 100% { opacity: 0.78; transform: translateX(-50%) scale(0.97); }
     50%      { opacity: 1; transform: translateX(-50%) scale(1.04); }
@@ -92,8 +95,9 @@
   }
   body:not(.show-instructions) .thumb-label,
   body:not(.show-instructions) .touch-hint-bar,
-  body:not(.show-instructions) .touch-hint { display: none; }
-  body.show-instructions .bottombar { padding-bottom: 1.8rem; }
+  body:not(.show-instructions) .touch-hint,
+  body:not(.show-instructions) .hit-zone { display: none; }
+  body.show-instructions .bottombar { padding-bottom: 1.5rem; }
 
   @media (max-width: 768px) {
     body.touch-mode .time-label,
@@ -106,7 +110,7 @@
     body.touch-mode .sidebar { min-width: 9rem; max-width: 11rem; padding: 0.5rem 0 0.5rem 0.5rem; }
     body.touch-mode .sidebar button { font-size: 0.9rem; padding: 0.6rem 0.7rem; }
 
-    body.touch-mode .bottombar { padding: 0.75rem 0.75rem 1rem; gap: 0.75rem; }
+    body.touch-mode .bottombar { padding: 0.35rem 0.75rem 0.6rem; gap: 0.35rem; }
     body.touch-mode .slabel { font-size: 1rem; min-width: 5rem; }
     body.touch-mode .row { gap: 0.6rem; }
     body.touch-mode .ts { font-size: 1rem; min-width: 0; }
@@ -205,6 +209,10 @@
   </div>
   {% if touch_mode %}<span class="touch-hint" id="touchHint">Touch &amp; drag to explore time</span>{% endif %}
 </div>
+{% if touch_mode %}
+<div class="hit-zone" id="hitZoneLo" aria-hidden="true"></div>
+<div class="hit-zone" id="hitZoneHi" aria-hidden="true"></div>
+{% endif %}
 <script src="/static/playback.js"></script>
 <script src="/static/controller.js"></script>
 <script>
@@ -275,6 +283,8 @@ const thumbLabelLo = document.getElementById('thumbLabelLo');
 const thumbLabelHi = document.getElementById('thumbLabelHi');
 const braceGraphic = document.querySelector('.brace-graphic');
 const touchHint = document.getElementById('touchHint');
+const hitZoneLo = document.getElementById('hitZoneLo');
+const hitZoneHi = document.getElementById('hitZoneHi');
 const fsHint = document.querySelector('.fs-hint');
 const timeDescriptor = document.getElementById('timeDescriptor');
 const timeTs = document.getElementById('timeTs');
@@ -588,6 +598,7 @@ function renderThumbs() {
     thumbLabelHi.style.left = frameToPct(rangeHi) + '%';
     positionThumbLabels();
   }
+  positionHitZones();
   if (braceGraphic) {
     const loPct = frameToPct(rangeLo);
     const hiPct = frameToPct(rangeHi);
@@ -605,6 +616,26 @@ function renderThumbs() {
       touchHint.style.left = (leftVp - parentRect.left) + 'px';
     }
   }
+}
+function positionHitZones() {
+  if (!hitZoneLo || !hitZoneHi || !dual || frames.length < 2) return;
+  const dualRect = dual.getBoundingClientRect();
+  const bottombar = document.querySelector('.bottombar');
+  const bottombarRect = bottombar ? bottombar.getBoundingClientRect() : dualRect;
+  const total = frames.length - 1;
+  const xLo = dualRect.left + (rangeLo / total) * dualRect.width;
+  const xHi = dualRect.left + (rangeHi / total) * dualRect.width;
+  const mid = (xLo + xHi) / 2;
+  const yTop = bottombarRect.top;
+  const yBot = window.innerHeight;
+  hitZoneLo.style.left = dualRect.left + 'px';
+  hitZoneLo.style.top = yTop + 'px';
+  hitZoneLo.style.width = Math.max(0, mid - dualRect.left) + 'px';
+  hitZoneLo.style.height = Math.max(0, yBot - yTop) + 'px';
+  hitZoneHi.style.left = mid + 'px';
+  hitZoneHi.style.top = yTop + 'px';
+  hitZoneHi.style.width = Math.max(0, dualRect.right - mid) + 'px';
+  hitZoneHi.style.height = Math.max(0, yBot - yTop) + 'px';
 }
 function positionThumbLabels() {
   if (!thumbLabelLo || !thumbLabelHi || !dual) return;
@@ -874,12 +905,12 @@ function updateDrag(clientX) {
   showThumbTooltip(anchor, clientX, dual);
 }
 
-dual.addEventListener('pointerdown', (e) => {
+function startRangeDrag(e, forced) {
   if (!frames.length) return;
   e.preventDefault();
   e.stopPropagation();
   try { dual.setPointerCapture(e.pointerId); } catch {}
-  activeDrag = pickActive(e.clientX);
+  activeDrag = forced || pickActive(e.clientX);
   playing = false;
   setPlayBtn('Play');
   dragging = true;
@@ -901,7 +932,13 @@ dual.addEventListener('pointerdown', (e) => {
   dual.addEventListener('pointermove', onMove);
   dual.addEventListener('pointerup', onUp);
   dual.addEventListener('pointercancel', onUp);
-});
+}
+
+dual.addEventListener('pointerdown', (e) => startRangeDrag(e));
+if (thumbLabelLo) thumbLabelLo.addEventListener('pointerdown', (e) => startRangeDrag(e, 'lo'));
+if (thumbLabelHi) thumbLabelHi.addEventListener('pointerdown', (e) => startRangeDrag(e, 'hi'));
+if (hitZoneLo) hitZoneLo.addEventListener('pointerdown', (e) => startRangeDrag(e, 'lo'));
+if (hitZoneHi) hitZoneHi.addEventListener('pointerdown', (e) => startRangeDrag(e, 'hi'));
 
 let _showToken = 0;
 function show(i) {
