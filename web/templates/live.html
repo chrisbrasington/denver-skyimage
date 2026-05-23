@@ -70,8 +70,10 @@
   .event-dialog::after { content: ''; position: absolute; left: 50%; bottom: -10px; transform: translateX(-50%); border: 8px solid transparent; border-top-color: #ffd76a; }
   .thumb-tooltip.show { display: block; }
 
-  .rangebar .thumb-label { position: absolute; top: -28px; transform: translateX(-50%); background: rgba(20,24,32,0.92); color: #ffd76a; border: 2px solid #ffd76a; border-radius: 6px; padding: 0.2rem 0.7rem; font-weight: 700; font-size: 1.05rem; white-space: nowrap; pointer-events: none; z-index: 4; box-shadow: 0 2px 8px rgba(0,0,0,0.55); animation: labelPulse 2.4s ease-in-out infinite; }
-  .rangebar .thumb-label.stacked { top: -56px; }
+  .rangebar .thumb-label { position: absolute; top: calc(100% + 6px); transform: translateX(-50%); background: rgba(20,24,32,0.92); color: #ffd76a; border: 2px solid #ffd76a; border-radius: 6px; padding: 0.2rem 0.7rem; font-weight: 700; font-size: 1.05rem; white-space: nowrap; pointer-events: none; z-index: 4; box-shadow: 0 2px 8px rgba(0,0,0,0.55); animation: labelPulse 2.4s ease-in-out infinite; }
+  .rangebar .thumb-label.stacked { top: calc(100% + 36px); }
+  body.show-instructions .rangebar { padding-bottom: 44px; }
+  body.show-instructions .rangebar:has(.thumb-label.stacked) { padding-bottom: 74px; }
   .touch-hint { flex: 1; text-align: center; color: #ffd76a; font-size: 1.3rem; font-weight: 700; letter-spacing: 0.04em; animation: hintPulse 2.4s ease-in-out infinite; animation-delay: 1.2s; }
   @keyframes labelPulse {
     0%, 100% { opacity: 0.78; transform: translateX(-50%) scale(0.97); }
@@ -107,8 +109,10 @@
     body.touch-mode .rangebar .playhead { top: 2px; width: 8px; height: 60px; }
     body.touch-mode .rangebar .anchors { font-size: 0.75rem; }
     body.touch-mode .rangebar .ticks { font-size: 0.85rem; }
-    body.touch-mode .rangebar .thumb-label { top: -32px; font-size: 0.95rem; padding: 0.15rem 0.55rem; }
-    body.touch-mode .rangebar .thumb-label.stacked { top: -60px; }
+    body.touch-mode .rangebar .thumb-label { top: calc(100% + 6px); font-size: 0.95rem; padding: 0.15rem 0.55rem; }
+    body.touch-mode .rangebar .thumb-label.stacked { top: calc(100% + 34px); }
+    body.touch-mode.show-instructions .rangebar { padding-bottom: 38px; }
+    body.touch-mode.show-instructions .rangebar:has(.thumb-label.stacked) { padding-bottom: 66px; }
     body.touch-mode .touch-hint { font-size: 1rem; }
   }
 </style>
@@ -174,8 +178,8 @@
           <div class="thumb" id="thumbHi"></div>
           <div class="playhead" id="playhead"></div>
           {% if touch_mode %}
-          <div class="thumb-label thumb-label-lo" id="thumbLabelLo">▼ Start</div>
-          <div class="thumb-label thumb-label-hi" id="thumbLabelHi">▼ End</div>
+          <div class="thumb-label thumb-label-lo" id="thumbLabelLo">▲ Start</div>
+          <div class="thumb-label thumb-label-hi" id="thumbLabelHi">▲ End</div>
           {% endif %}
         </div>
       </div>
