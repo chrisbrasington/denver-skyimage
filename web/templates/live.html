@@ -218,7 +218,6 @@ const SERVER_CAMERA = {% if camera_name %}{{ camera_name | tojson }}{% else %}nu
 const urlParams = new URLSearchParams(window.location.search);
 const CAMERA = SERVER_CAMERA || urlParams.get('camera') || urlParams.get('cam') || '';
 const instructionsOn = !['false', '0'].includes((urlParams.get('instruction') || '').toLowerCase());
-if (instructionsOn) document.body.classList.add('show-instructions');
 const camQS = CAMERA ? `camera=${encodeURIComponent(CAMERA)}` : '';
 function withCam(url) {
   if (!CAMERA) return url;
@@ -590,6 +589,8 @@ function renderThumbs() {
   if (thumbLabelLo && thumbLabelHi) {
     thumbLabelLo.style.left = frameToPct(rangeLo) + '%';
     thumbLabelHi.style.left = frameToPct(rangeHi) + '%';
+    clampLabelToViewport(thumbLabelLo, rangeLo);
+    clampLabelToViewport(thumbLabelHi, rangeHi);
     resolveLabelCollision();
   }
   if (braceGraphic) {
@@ -603,13 +604,30 @@ function renderThumbs() {
       touchHint.style.transform = 'translateX(-50%)';
       const rect = touchHint.getBoundingClientRect();
       const vw = window.innerWidth;
-      const m = 12;
+      const m = 18;
       let shift = 0;
       if (rect.left < m) shift = m - rect.left;
       else if (rect.right > vw - m) shift = vw - m - rect.right;
       if (shift !== 0) touchHint.style.transform = `translateX(calc(-50% + ${shift}px))`;
     }
   }
+}
+function clampLabelToViewport(el, frameIdx) {
+  if (!el || !dual) return;
+  el.style.marginLeft = '0px';
+  const dualRect = dual.getBoundingClientRect();
+  if (!dualRect.width || frames.length < 2) return;
+  const pct = frameToPct(frameIdx) / 100;
+  const labelW = el.offsetWidth;
+  const centerVp = dualRect.left + pct * dualRect.width;
+  const leftVp = centerVp - labelW / 2;
+  const rightVp = centerVp + labelW / 2;
+  const vw = window.innerWidth;
+  const m = 18;
+  let shift = 0;
+  if (leftVp < m) shift = m - leftVp;
+  else if (rightVp > vw - m) shift = vw - m - rightVp;
+  if (shift) el.style.marginLeft = shift + 'px';
 }
 function resolveLabelCollision() {
   if (!thumbLabelLo || !thumbLabelHi || !dual) return;
@@ -1085,6 +1103,10 @@ async function buildCameraSwitcher() {
     else applyIdleReset();
   }
   if (frames.length) show(idx);
+  if (instructionsOn && frames.length) {
+    document.body.classList.add('show-instructions');
+    renderThumbs();
+  }
   restartTimer();
   setInterval(async () => { await loadSunTimes(); await loadFrames(); await loadEvents(); }, 30000);
 })();
