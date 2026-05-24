@@ -1,234 +1,28 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>Browse — Denver Sky</title>
-<style>
-  body { margin: 0; background: #0b0d12; color: #e6e9ef; font-family: system-ui, sans-serif; }
-  header { padding: 0.6rem 1rem; display: flex; gap: 1rem; align-items: center; border-bottom: 1px solid #222; flex-wrap: wrap; }
-  header a { color: #8ab4ff; text-decoration: none; }
-  header a:hover { text-decoration: underline; }
-  header select { background: #1f2630; color: #e6e9ef; border: 1px solid #333; padding: 0.4rem 0.6rem; border-radius: 4px; font-size: 0.85rem; }
-  header label { font-size: 0.85rem; color: #aab; display: flex; align-items: center; gap: 0.4rem; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.5rem; padding: 1rem; }
-  .tile { background: #111; border: 1px solid #1c1f26; border-radius: 4px; overflow: hidden; display: flex; flex-direction: column; }
-  .tile .thumb { display: block; }
-  .tile img { width: 100%; display: block; aspect-ratio: 4/3; object-fit: cover; cursor: pointer; }
-  .tile .caption { font-size: 0.75rem; padding: 0.25rem 0.4rem; color: #aab; font-variant-numeric: tabular-nums; }
-  .tile .actions { display: flex; gap: 0.25rem; padding: 0.25rem 0.4rem 0.4rem; }
-  .tile .actions a, .tile .actions button { flex: 1; font-size: 0.7rem; padding: 0.25rem; background: #1f2630; color: #e6e9ef; border: 1px solid #333; border-radius: 3px; text-align: center; text-decoration: none; cursor: pointer; }
-  .tile .actions .del { background: #3a1a1a; border-color: #5a2222; }
-  .tile .actions a:hover, .tile .actions button:hover { filter: brightness(1.3); }
-  .tile.removing { opacity: 0.3; pointer-events: none; }
-  .status { text-align: center; padding: 1rem; color: #888; }
-</style>
-</head>
-<body>
-<script src="/static/js/lib/admin-keypad.js"></script>
-<script>
-(function () {
-  const goHome = () => window.location.replace('/');
-  window.AdminKeypad.show({
-    title: 'Admin Access',
-    sub: 'Enter PIN',
-    mode: 'gate',
-    timeoutMs: 10000,
-    onSuccess: () => {},
-    onFail: goHome,
-    onTimeout: goHome,
-  });
-})();
-</script>
-<header>
+{% extends "_base.html" %}
+
+{% block title %}Browse — Denver Sky{% endblock %}
+
+{% block page_css %}<link rel="stylesheet" href="/static/css/pages/browse.css">{% endblock %}
+
+{% block admin_gate %}{% include "_admin_gate.html" %}{% endblock %}
+
+{% block content %}
+<header class="app-header">
   <strong>Denver Sky</strong>
   <a href="/">Live</a>
-  <a href="/browse">Browse</a>
+  <a href="/browse" class="here">Browse</a>
   <label>Jump to <select id="jump"><option value="">Newest first</option></select></label>
   <span id="counter" style="margin-left:auto;color:#888;"></span>
 </header>
+
 <div class="grid" id="grid"></div>
 <div class="status" id="status">loading…</div>
+{% endblock %}
+
+{% block scripts %}
 <script>
-const urlParams = new URLSearchParams(window.location.search);
-const SERVER_CAMERA = {{ camera_name | tojson }};
-const CAMERA = SERVER_CAMERA || urlParams.get('camera') || urlParams.get('cam') || '';
-const camQS = CAMERA ? `camera=${encodeURIComponent(CAMERA)}` : '';
-function withCam(url) {
-  if (!CAMERA) return url;
-  return url + (url.includes('?') ? '&' : '?') + camQS;
-}
-function imgUrl(name, extra) {
-  let u = `/image/${name}`;
-  const parts = [];
-  if (CAMERA) parts.push(camQS);
-  if (extra) parts.push(extra);
-  if (parts.length) u += '?' + parts.join('&');
-  return u;
-}
-const grid = document.getElementById('grid');
-const status = document.getElementById('status');
-const counter = document.getElementById('counter');
-const jumpSel = document.getElementById('jump');
-let page = 1;
-const perPage = 60;
-let total = 0;
-let loading = false;
-let done = false;
-let startTs = '';
-
-function tsParam() {
-  return startTs ? `&start=${encodeURIComponent(startTs)}` : '';
-}
-
-function toFilenameTs(iso) {
-  return iso.replace('T', '_').replace(/:/g, '-').slice(0, 19);
-}
-
-function denverTs(date) {
-  const fmt = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Denver',
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-    hourCycle: 'h23',
-  });
-  const p = {};
-  for (const x of fmt.formatToParts(date)) p[x.type] = x.value;
-  return `${p.year}-${p.month}-${p.day}_${p.hour}-${p.minute}-${p.second}`;
-}
-
-async function buildJumpOptions() {
-  const [daysR, sunR] = await Promise.all([
-    fetch(withCam('/api/days')),
-    fetch(withCam('/api/anchors')),
-  ]);
-  const days = await daysR.json();
-  const sun = await sunR.json();
-  const sunByDay = {};
-  for (const s of sun) sunByDay[s.day] = s;
-
-  jumpSel.innerHTML = '';
-  jumpSel.appendChild(new Option('Newest first', ''));
-
-  if (days.length) {
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-    jumpSel.appendChild(new Option('Last hour', denverTs(oneHourAgo)));
-
-    days.forEach((d, idx) => {
-      const md = d.day.slice(5);
-      let prefix;
-      if (idx === 0) prefix = `Today (${md})`;
-      else if (idx === 1) prefix = `Yesterday (${md})`;
-      else prefix = `${idx} days ago (${md})`;
-      jumpSel.appendChild(new Option(`${prefix} 00:00`, `${d.day}_00-00-00`));
-      const s = sunByDay[d.day];
-      if (s?.sunrise) jumpSel.appendChild(new Option(`${prefix} sunrise ${s.sunrise}`, `${d.day}_${s.sunrise.replace(':', '-')}-00`));
-      if (s?.sunset) jumpSel.appendChild(new Option(`${prefix} sunset ${s.sunset}`, `${d.day}_${s.sunset.replace(':', '-')}-00`));
-    });
-  }
-}
-
-jumpSel.addEventListener('change', () => {
-  startTs = jumpSel.value;
-  page = 1;
-  total = 0;
-  loading = false;
-  done = false;
-  grid.innerHTML = '';
-  status.textContent = 'loading…';
-  window.scrollTo(0, 0);
-  loadPage();
-});
-
-async function loadPage() {
-  if (loading || done) return;
-  loading = true;
-  status.textContent = 'loading…';
-  const r = await fetch(withCam(`/api/list?page=${page}&per_page=${perPage}${tsParam()}`));
-  const data = await r.json();
-  total = data.total;
-  counter.textContent = `${total} frames`;
-  if (!data.items.length) {
-    done = true;
-    status.textContent = total === 0 ? 'no images yet' : 'end';
-    loading = false;
-    return;
-  }
-  for (const f of data.items) {
-    const tile = document.createElement('div');
-    tile.className = 'tile';
-    tile.dataset.name = f.name;
-
-    const thumb = document.createElement('a');
-    thumb.className = 'thumb';
-    thumb.href = imgUrl(f.name);
-    thumb.target = '_blank';
-    thumb.rel = 'noopener';
-    const im = document.createElement('img');
-    im.loading = 'lazy';
-    im.src = imgUrl(f.name);
-    im.alt = f.ts;
-    thumb.appendChild(im);
-
-    const cap = document.createElement('div');
-    cap.className = 'caption';
-    cap.textContent = f.ts.replace('T', ' ');
-
-    const actions = document.createElement('div');
-    actions.className = 'actions';
-    const dl = document.createElement('a');
-    dl.href = imgUrl(f.name, 'download=1');
-    dl.textContent = 'Download';
-    const del = document.createElement('button');
-    del.className = 'del';
-    del.textContent = 'Delete';
-    del.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      deleteTile(tile, f.name);
-    });
-    actions.appendChild(dl);
-    actions.appendChild(del);
-
-    tile.appendChild(thumb);
-    tile.appendChild(cap);
-    tile.appendChild(actions);
-    grid.appendChild(tile);
-  }
-  page++;
-  loading = false;
-  if (page * perPage > total + perPage) {
-    done = true;
-    status.textContent = 'end';
-  } else {
-    status.textContent = '';
-  }
-}
-
-async function deleteTile(tile, name) {
-  if (!confirm(`Delete ${name}?`)) return;
-  tile.classList.add('removing');
-  try {
-    const r = await fetch(imgUrl(name), { method: 'DELETE' });
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    tile.remove();
-    total = Math.max(0, total - 1);
-    counter.textContent = `${total} frames`;
-  } catch (e) {
-    tile.classList.remove('removing');
-    alert(`Delete failed: ${e.message}`);
-  }
-}
-
-window.addEventListener('scroll', () => {
-  if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 600) {
-    loadPage();
-  }
-});
-
-(async () => {
-  await buildJumpOptions();
-  loadPage();
-})();
+  window.__SKY = { camera: {{ camera_name | tojson }} };
 </script>
+<script src="/static/js/pages/browse.js"></script>
 <script src="/static/js/lib/hard-refresh.js"></script>
-</body>
-</html>
+{% endblock %}

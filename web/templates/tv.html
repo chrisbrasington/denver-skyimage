@@ -1,32 +1,21 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>Denver Sky — TV</title>
-<style>
-  * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
-  html, body { margin: 0; height: 100%; background: #000; color: #e6e9ef; font-family: system-ui, sans-serif; overflow: hidden; cursor: none; }
-  .stage { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: #000; }
-  .stage img { max-width: 100%; max-height: 100%; -webkit-user-drag: none; pointer-events: none; }
-  .idle { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2rem; padding: 2rem; text-align: center; }
-  .idle .title { font-size: 2rem; color: #8ab4ff; text-transform: uppercase; letter-spacing: 0.12em; }
-  .idle .code { font-size: 18vw; font-weight: 900; color: #ffd76a; letter-spacing: 0.15em; font-variant-numeric: tabular-nums; line-height: 1; text-shadow: 0 6px 22px rgba(255,215,106,0.25); }
-  .idle .hint { font-size: 1.6rem; color: #aab; }
-  .idle .hint strong { color: #ffd76a; }
-  .status { position: fixed; bottom: 0.5rem; right: 0.75rem; font-size: 0.75rem; color: #445; font-variant-numeric: tabular-nums; }
-  .status.bad { color: #ff8a7a; }
-  .hidden { display: none !important; }
-</style>
-</head>
-<body>
-  <div class="stage hidden" id="stage"><img id="frame" alt=""></div>
-  <div class="idle" id="idle">
-    <div class="title">Denver Sky TV</div>
-    <div class="code" id="code">----</div>
-    <div class="hint">Enter this code at <strong>/connect</strong> to pair</div>
-  </div>
-  <div class="status" id="status">connecting…</div>
-  <script src="/static/js/lib/tv.js"></script>
-</body>
-</html>
+{% extends "_base.html" %}
+
+{% block title %}Denver Sky — TV{% endblock %}
+
+{% block viewport %}width=device-width, initial-scale=1, user-scalable=no{% endblock %}
+
+{% block page_css %}<link rel="stylesheet" href="/static/css/pages/tv.css">{% endblock %}
+
+{% block content %}
+<div class="stage hidden" id="stage"><img id="frame" alt=""></div>
+<div class="idle" id="idle">
+  <div class="title">Denver Sky TV</div>
+  <div class="code" id="code">----</div>
+  <div class="hint">Enter this code at <strong>/connect</strong> to pair</div>
+</div>
+<div class="status" id="status">connecting…</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/lib/tv.js"></script>
+{% endblock %}

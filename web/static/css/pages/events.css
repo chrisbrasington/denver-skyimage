@@ -1,0 +1,51 @@
+/*
+ * events.css — event list admin table (templates/events.html).
+ */
+
+.app-header select {
+  background: var(--bg-input); color: var(--fg);
+  border: 1px solid var(--border-2);
+  padding: 0.35rem 0.6rem; border-radius: var(--r-sm);
+  font-size: 0.85rem;
+}
+.app-header button {
+  font-size: 0.85rem; padding: 0.35rem 0.7rem;
+}
+.app-header #counter {
+  margin-left: auto; color: #888; font-size: 0.85rem;
+}
+
+.danger {
+  background: #5a2222; border-color: #7a3030;
+}
+.danger:hover:not(:disabled) { background: #7a3030; }
+
+table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
+th, td {
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid #1c1f26;
+  font-size: 0.85rem; vertical-align: middle;
+}
+th {
+  text-align: left; color: var(--link); font-weight: 600;
+  background: #0e1118; position: sticky; top: 0;
+}
+td input[type=text] {
+  width: 100%; min-width: 18rem;
+  background: var(--bg); color: var(--fg);
+  border: 1px solid #2a3340; border-radius: 3px;
+  padding: 0.3rem 0.5rem; font-size: 0.85rem;
+}
+td input[type=datetime-local] {
+  background: var(--bg); color: var(--fg);
+  border: 1px solid #2a3340; border-radius: 3px;
+  padding: 0.3rem 0.5rem; font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+td.pos, td.created, td.id {
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.75rem;
+}
+td.actions { white-space: nowrap; display: flex; gap: 0.3rem; }
+tr.dirty { background: #14202a; }
