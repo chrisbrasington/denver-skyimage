@@ -124,7 +124,7 @@ const CAMERAS = {{ cameras_public | tojson }};
 const grid = document.getElementById('grid');
 
 function imgUrl(cam, name) {
-  return `/image/${encodeURIComponent(name)}?camera=${encodeURIComponent(cam)}&thumb=1`;
+  return `/image/${encodeURIComponent(name)}?camera=${encodeURIComponent(cam)}`;
 }
 
 function fmtTs(iso) {
