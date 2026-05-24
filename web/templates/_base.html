@@ -1,0 +1,18 @@
+{# Base layout: every page extends this. Provides <head>, shared CSS, and named blocks. #}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="{% block viewport %}width=device-width, initial-scale=1{% endblock %}">
+  <title>{% block title %}Denver Sky{% endblock %}</title>
+
+  <link rel="stylesheet" href="/static/css/theme.css">
+  <link rel="stylesheet" href="/static/css/components.css">
+  {% block page_css %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+  {% block admin_gate %}{% endblock %}
+  {% block content %}{% endblock %}
+  {% block scripts %}{% endblock %}
+</body>
+</html>

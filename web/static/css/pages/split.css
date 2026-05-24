@@ -1,0 +1,202 @@
+/*
+ * split.css — dual-camera comparison view (templates/split.html).
+ * Shared rangebar/sidebar come from components.css.
+ */
+
+/* ── full-bleed layout (no scrolling) ────────────────────────── */
+* {
+  box-sizing: border-box;
+  -webkit-user-select: none; user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+html, body { height: 100%; overflow: hidden; }
+body { display: flex; flex-direction: column; }
+.main { flex: 1; display: flex; align-items: stretch; min-height: 0; }
+
+/* ── topbar ──────────────────────────────────────────────────── */
+.topbar {
+  display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg); flex-wrap: wrap;
+}
+.topbar a { font-size: 0.9rem; }
+.topbar .spacer { flex: 1; }
+.topbar select {
+  background: var(--bg-input); color: var(--fg);
+  border: 1px solid var(--border-3); border-radius: var(--r);
+  padding: 0.45rem 0.6rem; font-size: 0.95rem;
+}
+.topbar label {
+  font-size: 0.85rem; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+.topbar .swap {
+  background: var(--bg-input); color: var(--accent);
+  border: 1px solid var(--border-3); border-radius: var(--r);
+  padding: 0.45rem 0.7rem; cursor: pointer; font-size: 1.1rem;
+}
+.topbar .swap:active { background: #2a3340; }
+.topbar .mirror {
+  background: var(--ok-bg); color: var(--ok);
+  border: 1px solid var(--ok-border); border-radius: var(--r);
+  padding: 0.45rem 0.7rem; cursor: pointer; font-size: 0.9rem;
+  display: none; align-items: center; gap: 0.4rem;
+}
+.topbar .mirror.show   { display: inline-flex; }
+.topbar .mirror:active { background: #1c3024; }
+.topbar .mirror .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--ok); box-shadow: 0 0 6px var(--ok);
+}
+
+/* ── sidebar — slightly different from default ──────────────── */
+.sidebar {
+  gap: 0.5rem; padding: 0.75rem 0 0.75rem 0.75rem;
+  overflow-y: auto;
+}
+.sidebar button {
+  font-size: 0.95rem; padding: 0.7rem 0.85rem;
+  border: 2px solid var(--border-3); border-radius: var(--r-md);
+  background: var(--bg-input); color: var(--fg);
+  transition: transform 0.18s ease-out, filter 0.18s ease-out;
+  white-space: pre-line;
+}
+.sidebar button.active { transform: translateX(10px); filter: brightness(1.25); }
+
+/* ── stages (dual stage grid) ───────────────────────────────── */
+.stages {
+  flex: 1;
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 4px; padding: 0 0.5rem;
+  min-width: 0; min-height: 0;
+  cursor: pointer;
+}
+.stage {
+  position: relative;
+  display: flex; justify-content: center; align-items: center;
+  background: var(--bg); min-height: 0; min-width: 0; overflow: hidden;
+}
+.stage img {
+  width: 100%; height: 100%; object-fit: contain;
+  box-shadow: 0 0 20px #000;
+  -webkit-user-drag: none; pointer-events: none;
+}
+.stage .cam-label {
+  position: absolute; top: 0.6rem; left: 0.6rem;
+  background: rgba(10,15,20,0.6);
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: var(--r-md);
+  padding: 0.3rem 0.7rem;
+  color: var(--accent); font-weight: 700; font-size: 1.1rem;
+  text-transform: capitalize; letter-spacing: 0.04em;
+  backdrop-filter: blur(4px);
+}
+.stage .ts-label {
+  position: absolute; bottom: 0.6rem; right: 0.6rem;
+  background: rgba(10,15,20,0.6);
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: var(--r-md);
+  padding: 0.4rem 0.7rem;
+  color: #fff; font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  backdrop-filter: blur(4px);
+}
+.stage .ts-label.stale { color: #f7b7b7; border-color: rgba(255,120,120,0.4); }
+.stage .empty { color: var(--dim); font-size: 0.95rem; }
+.stage.mirroring { outline: 3px solid var(--ok); outline-offset: -3px; }
+
+/* ── bottombar (timeline) ───────────────────────────────────── */
+.bottombar {
+  background: var(--bg); border-top: 2px solid var(--border);
+  padding: 0.85rem 1rem 1rem;
+  display: flex; flex-direction: column; gap: 0.7rem;
+}
+.row { display: flex; gap: 1rem; align-items: center; }
+.row .slot { flex: 1; min-width: 0; }
+.slabel {
+  font-size: 1rem; color: var(--link); min-width: 6rem;
+  font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+}
+button.action {
+  background: var(--bg-input); color: var(--fg);
+  border: 2px solid var(--border-3); padding: 0.6rem 1.1rem;
+  border-radius: var(--r-md); cursor: pointer; font-size: 1rem; min-width: 5rem;
+}
+button.action:active { background: #2a3340; }
+.bottombar .ts { font-variant-numeric: tabular-nums; font-size: 1rem; }
+
+/* ── rangebar overrides (mid-sized thumbs) ──────────────────── */
+.rangebar {
+  --rangebar-thumb-size: 28px;
+  --rangebar-track-h: 8px;
+  --rangebar-dual-h: 44px;
+  --rangebar-ticks-fs: 0.95rem;
+  --rangebar-anchors-fs: 0.78rem;
+}
+.rangebar .ticks   { font-weight: 600; margin-bottom: 0.3rem; }
+.rangebar .anchors { height: 18px; }
+.rangebar .selected {
+  box-shadow: 0 -3px 0 var(--accent), 0 3px 0 var(--accent);
+  border-radius: 4px;
+}
+.rangebar .daymarks span { width: 2px; height: 20px; }
+.rangebar .thumb   { border-width: 3px; box-shadow: 0 0 0 2px rgba(0,0,0,0.6); }
+.rangebar .playhead {
+  top: 0; width: 6px; height: 40px;
+  box-shadow: 0 0 0 2px #000, 0 0 10px rgba(255,215,106,1);
+}
+
+/* sun markers (split-only addition to the rangebar) */
+.rangebar .sunmarks {
+  position: absolute; top: 12px; left: 0; right: 0;
+  height: 20px; pointer-events: none;
+}
+.rangebar .sunmarks span {
+  position: absolute; top: 0; width: 3px; height: 20px; transform: translateX(-50%);
+}
+.rangebar .sunmarks span.sr { background: #d6a14b; box-shadow: 0 0 5px rgba(214,161,75,0.8); }
+.rangebar .sunmarks span.ss { background: #c2614e; box-shadow: 0 0 5px rgba(194,97,78,0.8); }
+.rangebar .anchors span.sr-label { color: #d6a14b; font-weight: 600; }
+.rangebar .anchors span.ss-label { color: #c2614e; font-weight: 600; }
+
+/* ── thumb-tooltip — larger than default ────────────────────── */
+.thumb-tooltip {
+  transform: translate(-50%, calc(-100% - 50px));
+  background: rgba(20,24,32,0.97);
+  padding: 0.55rem 1rem; border-radius: var(--r-md);
+  font-size: 1.05rem; font-weight: 600;
+  border: 2px solid var(--link);
+  box-shadow: 0 4px 18px rgba(0,0,0,0.7);
+}
+
+/* ── narrow viewport: stack stages vertically ───────────────── */
+@media (max-width: 900px) {
+  .main { flex-direction: column; }
+  .sidebar {
+    flex-direction: row; overflow-x: auto; overflow-y: hidden;
+    min-width: 0; max-width: none;
+    padding: 0.5rem; justify-content: flex-start;
+  }
+  .sidebar button { width: auto; min-width: 8rem; }
+  .stages {
+    grid-template-columns: 1fr; grid-template-rows: 1fr 1fr;
+    gap: 2px; padding: 0 0.25rem;
+  }
+}
+
+/* ── fullscreen ─────────────────────────────────────────────── */
+.stages:fullscreen {
+  padding: 0; background: #000; gap: 2px;
+  grid-template-columns: 1fr 1fr; grid-template-rows: 1fr;
+}
+.stages:fullscreen .stage { background: #000; }
+.stages:fullscreen .stage img {
+  width: 100%; height: 100vh; object-fit: contain; box-shadow: none;
+}
+.stages:fullscreen .cam-label {
+  font-size: 1.4rem; padding: 0.4rem 0.9rem; top: 1rem; left: 1rem;
+}
+.stages:fullscreen .ts-label {
+  font-size: 1.3rem; padding: 0.55rem 0.9rem; bottom: 1rem; right: 1rem;
+}

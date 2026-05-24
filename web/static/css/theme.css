@@ -1,0 +1,206 @@
+/*
+ * theme.css — design tokens, base reset, and atomic utility classes.
+ * Loaded by every page via _base.html. Pair with components.css.
+ */
+
+/* ── design tokens ───────────────────────────────────────────── */
+:root {
+  /* surfaces */
+  --bg:        #0b0d12;
+  --bg-2:      #11141c;
+  --bg-3:      #161a26;
+  --bg-input:  #1f2630;
+
+  /* foreground */
+  --fg:        #e6e9ef;
+  --muted:     #aab;
+  --dim:       #788;
+  --placeholder: #556;
+
+  /* accents */
+  --accent:    #ffd76a;   /* primary highlight (yellow) */
+  --link:      #8ab4ff;   /* links / section headers */
+  --ok:        #7fd17a;   /* paired / running / success */
+  --bad:       #ff8a7a;   /* error / stale */
+  --warn-bg:   #5a2a2a;
+  --warn-fg:   #f0b8b8;
+  --ok-bg:     #14241a;
+  --ok-border: #2a5a3a;
+
+  /* borders */
+  --border:    #222;
+  --border-2:  #333;
+  --border-3:  #444;
+  --border-blue:   #3a557d;
+
+  /* spacing */
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.25rem;
+  --sp-6: 1.5rem;
+
+  /* radii */
+  --r-sm: 4px;
+  --r:    6px;
+  --r-md: 8px;
+  --r-lg: 10px;
+
+  /* type */
+  --font: system-ui, sans-serif;
+  --font-mono: ui-monospace, Menlo, monospace;
+
+  /* misc */
+  --shadow-sm:  0 2px 8px rgba(0,0,0,0.5);
+  --shadow-md:  0 4px 12px rgba(0,0,0,0.6);
+  --shadow-lg:  0 8px 28px rgba(0,0,0,0.55);
+}
+
+/* ── reset / base ────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font);
+}
+
+a { color: var(--link); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+button {
+  background: var(--bg-input);
+  color: var(--fg);
+  border: 1px solid var(--border-2);
+  padding: 0.4rem 0.8rem;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  font-family: inherit;
+}
+button:hover  { background: #2a3340; }
+button:active { background: #2a3340; }
+
+h1, h2, h3 { margin: 0; }
+h2 { font-size: 1rem; color: var(--link); text-transform: uppercase; letter-spacing: 0.08em; }
+
+input, select, textarea {
+  font-family: inherit;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r-sm);
+  padding: 0.45rem 0.6rem;
+}
+
+/* shared chrome bits */
+.app-header {
+  padding: 0.6rem 1rem;
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.app-header strong { font-size: 1rem; }
+.app-header a { font-size: 0.9rem; }
+.app-header a.here { color: var(--accent); }
+.app-header .spacer { flex: 1; }
+
+main.app-main { padding: 1rem; max-width: 1400px; margin: 0 auto; }
+
+/* admin-gated chrome — JS removes the class once unlocked */
+.admin-hidden { display: none !important; }
+
+/* generic empty/placeholder text */
+.empty { padding: 2rem; color: var(--dim); text-align: center; }
+
+/* ── atomic utilities ────────────────────────────────────────── */
+/* layout */
+.flex            { display: flex; }
+.flex-col        { display: flex; flex-direction: column; }
+.inline-flex     { display: inline-flex; }
+.items-center    { align-items: center; }
+.items-baseline  { align-items: baseline; }
+.items-stretch   { align-items: stretch; }
+.justify-center  { justify-content: center; }
+.justify-between { justify-content: space-between; }
+.justify-end     { justify-content: flex-end; }
+.flex-1          { flex: 1; min-width: 0; }
+.flex-wrap       { flex-wrap: wrap; }
+
+/* gap */
+.gap-1 { gap: var(--sp-1); }
+.gap-2 { gap: var(--sp-2); }
+.gap-3 { gap: var(--sp-3); }
+.gap-4 { gap: var(--sp-4); }
+
+/* padding */
+.p-1 { padding: var(--sp-1); }
+.p-2 { padding: var(--sp-2); }
+.p-3 { padding: var(--sp-3); }
+.p-4 { padding: var(--sp-4); }
+.px-3 { padding-left: var(--sp-3); padding-right: var(--sp-3); }
+.px-4 { padding-left: var(--sp-4); padding-right: var(--sp-4); }
+.py-2 { padding-top: var(--sp-2); padding-bottom: var(--sp-2); }
+.py-3 { padding-top: var(--sp-3); padding-bottom: var(--sp-3); }
+
+/* margin */
+.m-0  { margin: 0; }
+.mt-1 { margin-top: var(--sp-1); }
+.mt-2 { margin-top: var(--sp-2); }
+.mb-1 { margin-bottom: var(--sp-1); }
+.mb-2 { margin-bottom: var(--sp-2); }
+
+/* sizing */
+.w-full { width: 100%; }
+.h-full { height: 100%; }
+.min-w-0 { min-width: 0; }
+
+/* position */
+.relative { position: relative; }
+.absolute { position: absolute; }
+.fixed    { position: fixed; }
+
+/* text */
+.text-accent { color: var(--accent); }
+.text-link   { color: var(--link); }
+.text-muted  { color: var(--muted); }
+.text-dim    { color: var(--dim); }
+.text-bad    { color: var(--bad); }
+.text-ok     { color: var(--ok); }
+.text-fg     { color: var(--fg); }
+.text-xs     { font-size: 0.7rem; }
+.text-sm     { font-size: 0.85rem; }
+.text-md     { font-size: 1rem; }
+.uppercase   { text-transform: uppercase; }
+.tracking-wide { letter-spacing: 0.08em; }
+.font-bold   { font-weight: 700; }
+.font-semi   { font-weight: 600; }
+.tabular     { font-variant-numeric: tabular-nums; }
+.text-center { text-align: center; }
+.text-right  { text-align: right; }
+
+/* surfaces */
+.bg-2 { background: var(--bg-2); }
+.bg-3 { background: var(--bg-3); }
+
+/* borders */
+.border-base { border: 1px solid var(--border); }
+.border-b { border-bottom: 1px solid var(--border); }
+.border-t { border-top: 1px solid var(--border); }
+.rounded    { border-radius: var(--r); }
+.rounded-lg { border-radius: var(--r-lg); }
+
+/* display */
+.hidden { display: none !important; }
+.block  { display: block; }
+
+/* misc */
+.cursor-pointer { cursor: pointer; }
+.user-select-none {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}

@@ -1,0 +1,300 @@
+/*
+ * components.css — multi-rule UI components shared across pages.
+ * Loaded by every page via _base.html. See theme.css for tokens.
+ *
+ * Components defined here:
+ *   .rangebar          timeline scrubber (index, live, split, last_hour)
+ *   .sidebar           preset button column (live, index, split)
+ *   .camera-switcher   floating camera selector (live, index)
+ *   .thumb-tooltip     timeline hover tooltip (index, live, split)
+ *   .event-dialog      transient annotation bubble (index, live)
+ *   .pair-banner       device pairing banner (home)
+ *   .pair-overlay      pairing modal (home)
+ *   .compare-bar       multi-view comparison footer (home)
+ *   .img-loader        spinner shown while images load (index, live)
+ *   .pill              compact label (status)
+ */
+
+/* ── rangebar (timeline scrubber) ────────────────────────────── */
+/*
+ * Pages may override --rangebar-thumb-size / --rangebar-track-h to scale up
+ * for touch (see pages/live.css :root override on body.touch-mode).
+ */
+.rangebar {
+  --rangebar-thumb-size: 16px;
+  --rangebar-track-h:    4px;
+  --rangebar-dual-h:     28px;
+  --rangebar-ticks-fs:   0.7rem;
+  --rangebar-anchors-fs: 0.6rem;
+  width: 100%;
+}
+.rangebar .ticks {
+  display: flex; justify-content: space-between;
+  font-size: var(--rangebar-ticks-fs); color: var(--dim);
+  margin-bottom: 0.15rem; font-variant-numeric: tabular-nums;
+}
+.rangebar .anchors {
+  position: relative; height: 14px;
+  font-size: var(--rangebar-anchors-fs); color: #99a;
+  font-variant-numeric: tabular-nums; pointer-events: none;
+}
+.rangebar .anchors span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.rangebar .anchors span.event-anchor { color: var(--accent); font-weight: 600; }
+.rangebar .dual {
+  position: relative; height: var(--rangebar-dual-h);
+  touch-action: none; cursor: pointer;
+}
+.rangebar .track {
+  position: absolute; top: calc(var(--rangebar-dual-h) / 2 - var(--rangebar-track-h) / 2);
+  left: 0; right: 0; height: var(--rangebar-track-h);
+  background: var(--bg-input); border-radius: 2px; pointer-events: none;
+}
+.rangebar .selected {
+  position: absolute; top: 0; height: 100%;
+  background: transparent; border-radius: 2px;
+  box-shadow: 0 -2px 0 var(--accent), 0 2px 0 var(--accent);
+  pointer-events: none;
+}
+.rangebar .daymarks {
+  position: absolute; top: calc(var(--rangebar-dual-h) / 2 - 6px);
+  left: 0; right: 0; height: 12px; pointer-events: none;
+}
+.rangebar .daymarks span {
+  position: absolute; top: 0; width: 1px; height: 12px; background: #455;
+}
+.rangebar .daymarks span.event-mark {
+  background: var(--accent); width: 3px;
+  box-shadow: 0 0 4px rgba(255,215,106,0.6);
+}
+.rangebar .thumb {
+  position: absolute;
+  top: calc(var(--rangebar-dual-h) / 2 - var(--rangebar-thumb-size) / 2);
+  width: var(--rangebar-thumb-size); height: var(--rangebar-thumb-size);
+  border-radius: 50%; background: var(--thumb-color, var(--fg));
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.5);
+  transform: translateX(-50%); pointer-events: none; z-index: 2;
+}
+.rangebar .playhead {
+  position: absolute; top: 1px;
+  width: 4px; height: calc(var(--rangebar-dual-h) - 2px);
+  background: var(--thumb-color, var(--accent)); border-radius: 2px;
+  box-shadow: 0 0 0 1px #000, 0 0 8px rgba(255,215,106,0.9);
+  transform: translateX(-50%); pointer-events: none; z-index: 3;
+}
+.rangebar .thumb-label {
+  position: absolute; top: calc(100% + 4px); transform: translateX(-50%);
+  background: rgba(20,24,32,0.92); color: var(--accent);
+  border: 2px solid var(--accent); border-radius: var(--r);
+  padding: 0.15rem 0.6rem; font-weight: 700; font-size: 1rem;
+  white-space: nowrap; pointer-events: auto;
+  cursor: grab; touch-action: none; z-index: 4;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.55);
+}
+.rangebar .thumb-label:active { cursor: grabbing; }
+.hit-zone {
+  position: fixed; background: transparent;
+  cursor: grab; touch-action: none; z-index: 3;
+}
+.hit-zone:active { cursor: grabbing; }
+
+/* ── sidebar (preset buttons) ───────────────────────────────── */
+.sidebar {
+  position: relative; z-index: 10;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  gap: 0.4rem; padding: 1rem 0 1rem 1rem;
+  min-width: 13rem; max-width: 16rem;
+}
+.sidebar button {
+  width: calc(100% - 10px); text-align: left;
+  font-size: 0.85rem; padding: 0.55rem 0.7rem;
+  transition: transform 0.15s ease-out, filter 0.15s ease-out;
+}
+.sidebar button.active { transform: translateX(10px); filter: brightness(1.25); }
+.sidebar .preset-everything { background: #2a3b5a; }
+.sidebar .preset-today      { background: #2d4a2d; }
+.sidebar .preset-sunrise    { border-color: #d6a14b; }
+.sidebar .preset-day        { border-color: #6a7c8a; }
+.sidebar .preset-sunset     { border-color: #c2614e; }
+.sidebar .preset-night      { border-color: #3a4f7a; background: var(--bg-3); }
+.sidebar .preset-event      { border-color: var(--accent); background: #2a2515; }
+
+/* ── camera-switcher ─────────────────────────────────────────── */
+.camera-switcher {
+  position: fixed; top: 0.5rem; right: 0.5rem;
+  display: flex; flex-direction: column; gap: 0.3rem; z-index: 100;
+}
+.camera-switcher button {
+  font-size: 0.8rem; padding: 0.4rem 0.8rem; opacity: 0.6;
+}
+.camera-switcher button.active {
+  opacity: 1; background: #2a3b5a; border-color: var(--link);
+}
+
+/* ── thumb-tooltip ───────────────────────────────────────────── */
+.thumb-tooltip {
+  position: fixed;
+  transform: translate(-50%, calc(-100% - 10px));
+  background: rgba(20,24,32,0.95);
+  color: var(--fg);
+  padding: 0.35rem 0.65rem; border-radius: var(--r-sm);
+  font-size: 0.85rem; white-space: nowrap;
+  pointer-events: none; z-index: 1000;
+  display: none; border: 1px solid var(--border-3);
+  font-variant-numeric: tabular-nums;
+}
+.thumb-tooltip.show { display: block; }
+
+/* ── event-dialog (transient annotation bubble) ──────────────── */
+.event-dialog {
+  position: absolute;
+  transform: translate(-50%, -100%) translateY(10px);
+  background: rgba(20,24,32,0.92); color: #fff;
+  padding: 0.5rem 0.9rem; border-radius: var(--r-md);
+  font-size: 1rem; max-width: 18rem;
+  border: 2px solid var(--accent);
+  box-shadow: var(--shadow-md);
+  pointer-events: none; opacity: 0;
+  transition: opacity 0.4s ease-out, transform 0.4s ease-out;
+  z-index: 40; text-align: center; line-height: 1.25;
+}
+.event-dialog.shown  { opacity: 1; transform: translate(-50%, -100%) translateY(0); }
+.event-dialog.fading {
+  opacity: 0; transform: translate(-50%, -100%) translateY(-4px);
+  transition: opacity 1.5s ease-in, transform 1.5s ease-in;
+}
+.event-dialog::after {
+  content: ''; position: absolute; left: 50%; bottom: -8px;
+  transform: translateX(-50%);
+  border: 6px solid transparent; border-top-color: var(--accent);
+}
+
+/* ── img-loader (spinner overlay) ────────────────────────────── */
+.img-loader {
+  position: absolute; bottom: 1rem; right: 1rem;
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 3px solid rgba(255,255,255,0.18);
+  border-top-color: var(--accent);
+  animation: img-spin 0.6s linear infinite;
+  opacity: 0; transition: opacity 80ms ease-out;
+  pointer-events: none; z-index: 80;
+}
+.img-loader.show { opacity: 0.95; }
+@keyframes img-spin { to { transform: rotate(360deg); } }
+
+/* ── pair-banner (home page) ─────────────────────────────────── */
+.pair-banner {
+  display: flex; align-items: center; gap: 0.8rem;
+  padding: 0.6rem 1rem; background: var(--bg-2);
+  border-bottom: 1px solid var(--border); flex-wrap: wrap;
+}
+.pair-banner .label { font-size: 0.95rem; color: var(--muted); }
+.pair-banner .label strong {
+  color: var(--accent); font-variant-numeric: tabular-nums; letter-spacing: 0.05em;
+}
+.pair-banner .spacer { flex: 1; }
+.pair-banner button {
+  background: #2a5a3a; color: #cfffd9;
+  border: 1px solid var(--ok-border); border-radius: var(--r-sm);
+  padding: 0.55rem 1.1rem; font-size: 0.95rem; cursor: pointer;
+}
+.pair-banner button:active { background: #346a4a; }
+.pair-banner button.unpair {
+  background: #3a2630; color: #f7b7b7; border-color: #5a3340;
+}
+.pair-banner button.unpair:active { background: #4a3340; }
+.pair-banner .badge {
+  background: var(--ok-bg); color: var(--ok);
+  padding: 0.2rem 0.55rem; border-radius: var(--r-sm);
+  font-size: 0.78rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+.pair-banner .badge.not { background: #1c2030; color: var(--muted); }
+
+/* ── pair-overlay / pair-modal (home page) ───────────────────── */
+.pair-overlay {
+  position: fixed; inset: 0; z-index: 90;
+  background: rgba(5,7,12,0.75);
+  display: flex; align-items: center; justify-content: center; padding: 1rem;
+}
+.pair-overlay.hidden { display: none; }
+.pair-modal {
+  background: var(--bg-2);
+  border: 1px solid #2a3340; border-radius: var(--r-lg);
+  padding: 1.1rem 1.2rem 1.2rem;
+  width: min(520px, 100%); max-height: 90vh;
+  display: flex; flex-direction: column; gap: 0.8rem;
+}
+.pair-modal .head { display: flex; align-items: center; gap: 1rem; }
+.pair-modal .head strong {
+  font-size: 1.1rem; color: var(--link);
+  text-transform: uppercase; letter-spacing: 0.08em; flex: 1;
+}
+.pair-modal .head button {
+  background: transparent; color: var(--muted);
+  border: 1px solid var(--border-2); border-radius: var(--r-sm);
+  padding: 0.35rem 0.7rem; font-size: 1.2rem; cursor: pointer;
+}
+.pair-modal .head button:active { background: var(--bg-input); }
+.pair-modal .modal-empty {
+  padding: 1rem; text-align: center; color: var(--dim); font-size: 0.9rem;
+}
+.pair-modal .modal-empty a { color: var(--link); }
+.pair-modal .hint { color: var(--dim); font-size: 0.78rem; text-align: center; }
+
+.tv-list {
+  overflow-y: auto; display: flex; flex-direction: column;
+  gap: 0.5rem; padding-right: 0.2rem;
+}
+.tv-row {
+  display: flex; align-items: center; gap: 0.9rem;
+  padding: 0.8rem 1rem; background: var(--bg-3);
+  border: 1px solid #2a3340; border-radius: var(--r);
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+}
+.tv-row:hover { background: var(--bg-input); border-color: #4a6da0; }
+.tv-row:active { background: #2a3340; }
+.tv-row.disabled { cursor: default; opacity: 0.55; }
+.tv-row .code {
+  font-size: 1.8rem; font-weight: 800; color: var(--accent);
+  font-variant-numeric: tabular-nums; letter-spacing: 0.12em; min-width: 5ch;
+}
+.tv-row .info {
+  flex: 1; display: flex; flex-direction: column; gap: 0.15rem; min-width: 0;
+}
+.tv-row .id    { font-family: var(--font-mono); font-size: 0.78rem; color: var(--dim); }
+.tv-row .state { font-size: 0.8rem; color: var(--muted); }
+.tv-row .arrow { color: #4a6da0; font-size: 1.4rem; }
+
+/* ── compare-bar (multi-view footer on home) ─────────────────── */
+.compare-bar {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: var(--bg-3); border-top: 2px solid var(--accent);
+  padding: 0.75rem 1.25rem;
+  display: flex; align-items: center; gap: 1rem; justify-content: center;
+  transform: translateY(120%);
+  transition: transform 0.2s ease-out;
+  z-index: 60; box-shadow: 0 -6px 24px rgba(0,0,0,0.5);
+}
+.compare-bar.show { transform: translateY(0); }
+.compare-bar .picks { font-size: 1rem; color: var(--muted); }
+.compare-bar .picks strong { color: var(--accent); font-weight: 700; }
+.compare-bar button {
+  background: #2a5a3a; color: #cfffd9;
+  border: 2px solid var(--ok-border); border-radius: var(--r-md);
+  padding: 0.7rem 1.5rem; font-size: 1.05rem; cursor: pointer; font-weight: 700;
+}
+.compare-bar button:active { background: #346a4a; }
+.compare-bar .clear {
+  background: transparent; border: 1px solid var(--border-3); color: var(--muted);
+  padding: 0.55rem 0.9rem; font-size: 0.9rem; font-weight: normal;
+}
+
+/* ── pill (status / generic) ─────────────────────────────────── */
+.pill {
+  display: inline-block; padding: 0.1rem 0.5rem;
+  border-radius: 10px; font-size: 0.72rem;
+}
+.pill-running { background: #2d4a2d; color: #b5e0b5; }
+.pill-other   { background: var(--warn-bg); color: var(--warn-fg); }

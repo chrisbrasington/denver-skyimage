@@ -1,0 +1,12 @@
+{# Shared top navigation. Pass `here` for the current section to highlight it.
+   Example: {% set here = 'browse' %}{% include "_header.html" %} #}
+<header class="app-header">
+  <strong>Denver Sky</strong>
+  <a href="/" class="{% if here == 'home' %}here{% endif %}">Home</a>
+  <a href="/browse" class="{% if here == 'browse' %}here{% endif %}">Browse</a>
+  <a href="/events" class="{% if here == 'events' %}here{% endif %}">Events</a>
+  <a href="/connect" class="{% if here == 'connect' %}here{% endif %}">Connect</a>
+  <a href="/tv" class="{% if here == 'tv' %}here{% endif %}">TV</a>
+  <a href="/status" class="{% if here == 'status' %}here{% endif %}">Status</a>
+  {% block header_extras %}{% endblock %}
+</header>

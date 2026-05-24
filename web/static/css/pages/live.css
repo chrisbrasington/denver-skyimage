@@ -1,0 +1,301 @@
+/*
+ * live.css — touch-mode live player (templates/live.html).
+ * Shared timeline, sidebar, camera-switcher live in components.css.
+ *
+ * This page runs full-bleed with no scrolling; overrides body/html and tunes
+ * the rangebar component for chunkier touch targets via the variables defined
+ * in components.css.
+ */
+
+/* ── full-bleed layout ───────────────────────────────────────── */
+* {
+  box-sizing: border-box;
+  -webkit-user-select: none; user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+html, body { height: 100%; overflow: hidden; }
+body { display: flex; flex-direction: column; }
+
+.main { flex: 1; display: flex; align-items: stretch; min-height: 0; }
+
+/* sidebar — bigger touch targets than the components.css default */
+.sidebar {
+  gap: 0.5rem; padding: 1rem 0 1rem 1rem;
+  min-width: 16rem; max-width: 20rem;
+}
+.sidebar button {
+  width: calc(100% - 14px); text-align: left;
+  font-size: 1.05rem; padding: 0.85rem 1rem;
+  transition: transform 0.18s ease-out, filter 0.18s ease-out;
+}
+.sidebar button.active { transform: translateX(14px); filter: brightness(1.25); }
+
+/* rangebar — touch-sized variables */
+.rangebar {
+  --rangebar-thumb-size: 32px;
+  --rangebar-track-h: 8px;
+  --rangebar-dual-h: 48px;
+  --rangebar-ticks-fs: 1.1rem;
+  --rangebar-anchors-fs: 0.9rem;
+}
+.rangebar .ticks   { font-weight: 600; }
+.rangebar .anchors { height: 18px; }
+.rangebar .dual    { z-index: 5; }
+.rangebar .selected {
+  box-shadow: 0 -3px 0 var(--accent), 0 3px 0 var(--accent);
+  border-radius: 4px;
+}
+.rangebar .daymarks span { width: 2px; height: 20px; }
+.rangebar .thumb   { border-width: 3px; box-shadow: 0 0 0 2px rgba(0,0,0,0.6); }
+.rangebar .playhead {
+  width: 6px; box-shadow: 0 0 0 2px #000, 0 0 10px rgba(255,215,106,1);
+}
+
+/* stage (image area) */
+.stage {
+  position: relative; flex: 1;
+  display: flex; justify-content: center; align-items: center;
+  padding: 0; background: var(--bg); cursor: pointer;
+  min-height: 0; min-width: 0;
+}
+.stage img {
+  width: 100%; height: 100%; object-fit: contain;
+  box-shadow: 0 0 30px #000;
+  -webkit-user-drag: none; -webkit-touch-callout: none;
+  pointer-events: none;
+}
+.stage:fullscreen { padding: 0; }
+.stage:fullscreen img {
+  width: 100vw; height: 100vh; object-fit: contain; box-shadow: none;
+}
+.stage:fullscreen .fs-hint { display: none; }
+
+/* fullscreen hint icon */
+.fs-hint {
+  position: absolute; top: 1rem; left: 1rem;
+  width: 110px; height: 110px;
+  color: var(--fg); opacity: 0.45;
+  pointer-events: none;
+  animation: fsPulse 2.4s ease-in-out infinite;
+  filter: drop-shadow(0 0 8px rgba(0,0,0,0.7));
+  transition: top 0.15s, left 0.15s;
+}
+.fs-hint svg { width: 100%; height: 100%; }
+@keyframes fsPulse {
+  0%, 100% { opacity: 0.30; transform: scale(0.96); }
+  50%      { opacity: 0.75; transform: scale(1.04); }
+}
+
+/* live time label (touch_mode only) */
+.time-label {
+  position: absolute; top: 1rem; right: 1rem;
+  display: block;
+  background: rgba(10,15,20,0.55);
+  border: 2px solid rgba(255,255,255,0.4);
+  border-radius: 14px;
+  padding: 0.9rem 1.5rem;
+  color: #fff; text-shadow: 0 2px 6px rgba(0,0,0,0.7);
+  pointer-events: none; backdrop-filter: blur(4px);
+  letter-spacing: 0.02em; z-index: 50;
+  min-width: 18rem; text-align: right;
+  transition: top 0.15s, right 0.15s;
+}
+.time-label .descriptor { display: block; font-size: 2.4rem; font-weight: 700; line-height: 1.05; }
+.time-label .ts { display: block; font-size: 1.4rem; opacity: 0.9; margin-top: 0.4rem; font-variant-numeric: tabular-nums; }
+
+/* loader overlay (bigger than the default in components.css) */
+.img-loader {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex; flex-direction: column; align-items: center;
+  gap: 0.85rem; padding: 1.25rem 1.9rem;
+  background: rgba(10,15,20,0.72);
+  border: 2px solid rgba(255,215,106,0.45);
+  border-radius: 16px;
+  backdrop-filter: blur(6px);
+  box-shadow: var(--shadow-lg);
+  opacity: 0; transition: opacity 120ms ease-out;
+  pointer-events: none; z-index: 80;
+  /* override the small dot from components.css */
+  bottom: auto; right: auto; width: auto; height: auto;
+  border-top-color: transparent;
+  animation: none;
+}
+.img-loader.show { opacity: 1; }
+.img-loader .spinner {
+  width: 72px; height: 72px; border-radius: 50%;
+  border: 6px solid rgba(255,255,255,0.18);
+  border-top-color: var(--accent);
+  animation: img-spin 0.7s linear infinite;
+}
+.img-loader .label {
+  font-size: 1.15rem; font-weight: 700; color: var(--accent);
+  letter-spacing: 0.08em; text-transform: uppercase;
+}
+
+/* bottombar (timeline) */
+.bottombar {
+  position: relative;
+  background: var(--bg); border-top: 2px solid var(--border);
+  padding: 0.5rem 1.5rem 1rem;
+  display: flex; flex-direction: column; gap: 0.5rem;
+}
+.row { display: flex; gap: 1.25rem; align-items: center; }
+.row .slot { flex: 1; min-width: 0; }
+.slabel {
+  font-size: 1.4rem; color: var(--link); min-width: 9rem;
+  font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+}
+.bottombar button {
+  background: var(--bg-input); color: var(--fg);
+  border: 2px solid var(--border-3);
+  padding: 0.9rem 1.6rem; border-radius: var(--r-md);
+  cursor: pointer; font-size: 1.3rem; min-width: 7rem;
+}
+.bottombar .ts {
+  font-variant-numeric: tabular-nums; min-width: 22ch; font-size: 1.3rem;
+}
+
+/* camera-switcher — overrides components.css with bigger touch targets */
+.camera-switcher {
+  top: 1rem; right: 1rem; gap: 0.5rem;
+}
+.camera-switcher button {
+  position: relative;
+  font-size: 1.15rem; padding: 0.8rem 1.2rem; min-width: 0;
+  opacity: 0.95;
+  background: rgba(31,38,48,0.92);
+  border: 2px solid #6a7c8a;
+  font-weight: 600; letter-spacing: 0.02em;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.15s ease-out, border-color 0.15s, background 0.15s;
+}
+.camera-switcher button:hover { transform: translateX(-3px); border-color: var(--accent); }
+.camera-switcher button.active {
+  opacity: 1; background: #2a3b5a;
+  border-color: var(--link); font-weight: 700;
+  box-shadow: 0 0 0 2px rgba(138,180,255,0.35), 0 2px 10px rgba(0,0,0,0.6);
+}
+.camera-switcher button .cam-arrow {
+  position: absolute; right: calc(100% + 0.5rem); top: 50%;
+  width: 0; height: 0; font-size: 0;
+  border-top: 0.9rem solid transparent;
+  border-bottom: 0.9rem solid transparent;
+  border-left: 1.3rem solid var(--accent);
+  filter: drop-shadow(0 0 6px rgba(255,215,106,0.6));
+  display: none; pointer-events: none;
+}
+.camera-switcher button.active .cam-arrow { display: block; animation: camArrowNudge 1.4s ease-in-out infinite; }
+@keyframes camArrowNudge {
+  0%, 100% { transform: translate(0, -50%); opacity: 0.85; }
+  50%      { transform: translate(8px, -50%); opacity: 1; }
+}
+
+/* thumb-tooltip — larger for touch */
+.thumb-tooltip {
+  transform: translate(-50%, calc(-100% - 60px));
+  background: rgba(20,24,32,0.97);
+  padding: 0.75rem 1.25rem; border-radius: var(--r-md);
+  font-size: 1.4rem; font-weight: 600;
+  border: 2px solid var(--link);
+  box-shadow: 0 4px 18px rgba(0,0,0,0.7);
+}
+
+/* event-dialog — larger for touch */
+.event-dialog {
+  transform: translate(-50%, -100%) translateY(12px);
+  padding: 0.7rem 1.2rem; border-radius: var(--r-lg);
+  font-size: 1.3rem; font-weight: 600; max-width: 22rem;
+  background: rgba(20,24,32,0.93);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.7);
+}
+.event-dialog::after {
+  bottom: -10px;
+  border: 8px solid transparent; border-top-color: var(--accent);
+}
+
+/* range-thumb pull-tab labels (touch_mode only) */
+.rangebar .thumb-label { animation: labelPulse 2.4s ease-in-out infinite; }
+@keyframes labelPulse {
+  0%, 100% { opacity: 0.78; transform: translateX(-50%) scale(0.97); }
+  50%      { opacity: 1;    transform: translateX(-50%) scale(1.04); }
+}
+
+/* on-screen explainer (touch_mode only) */
+.touch-hint-bar {
+  display: flex; flex-direction: column; align-items: stretch;
+  width: 100%; gap: 0.3rem; margin-top: 30px; pointer-events: none;
+}
+.brace-graphic {
+  position: relative; height: 10px;
+  border-left: 3px solid var(--accent);
+  border-right: 3px solid var(--accent);
+  border-bottom: 3px solid var(--accent);
+  border-radius: 0 0 10px 10px;
+  filter: drop-shadow(0 0 6px rgba(255,215,106,0.45));
+  transition: margin-left 0.05s linear, margin-right 0.05s linear;
+}
+.brace-graphic::after {
+  content: ''; position: absolute; bottom: -8px; left: 50%;
+  transform: translateX(-50%); width: 0; height: 0;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: 10px solid var(--accent);
+  filter: drop-shadow(0 0 4px rgba(255,215,106,0.5));
+}
+.touch-hint {
+  position: absolute; bottom: 0.75rem; left: 0;
+  color: var(--accent); font-size: 1.3rem; font-weight: 700;
+  letter-spacing: 0.04em;
+  animation: hintPulse 2.4s ease-in-out infinite;
+  animation-delay: 1.2s;
+  white-space: nowrap; pointer-events: none;
+}
+@keyframes hintPulse {
+  0%, 100% { opacity: 0.7; }
+  50%      { opacity: 1; }
+}
+
+/* show hints only when body.show-instructions is set by pages/live.js */
+body:not(.show-instructions) .thumb-label,
+body:not(.show-instructions) .touch-hint-bar,
+body:not(.show-instructions) .touch-hint,
+body:not(.show-instructions) .hit-zone { display: none; }
+body.show-instructions .bottombar { padding-bottom: 1.5rem; }
+
+/* ── mobile / touch overrides ────────────────────────────────── */
+@media (max-width: 768px) {
+  body.touch-mode .time-label,
+  body.touch-mode .fs-hint { display: none; }
+  body.touch-mode .stage:fullscreen .time-label { display: block; }
+  body.touch-mode .stage:fullscreen .time-label .descriptor { font-size: 1.6rem; }
+  body.touch-mode .stage:fullscreen .time-label .ts { font-size: 1rem; }
+  body.touch-mode .stage:fullscreen .time-label { min-width: 0; padding: 0.5rem 0.9rem; }
+
+  body.touch-mode .sidebar { min-width: 9rem; max-width: 11rem; padding: 0.5rem 0 0.5rem 0.5rem; }
+  body.touch-mode .sidebar button { font-size: 0.9rem; padding: 0.6rem 0.7rem; }
+
+  body.touch-mode .bottombar { padding: 0.35rem 0.75rem 0.6rem; gap: 0.35rem; }
+  body.touch-mode .slabel { font-size: 1rem; min-width: 5rem; }
+  body.touch-mode .row { gap: 0.6rem; }
+  body.touch-mode .bottombar .ts { font-size: 1rem; min-width: 0; }
+
+  body.touch-mode .rangebar {
+    --rangebar-thumb-size: 44px;
+    --rangebar-track-h: 12px;
+    --rangebar-dual-h: 64px;
+    --rangebar-ticks-fs: 0.85rem;
+    --rangebar-anchors-fs: 0.75rem;
+  }
+  body.touch-mode .rangebar .daymarks { top: 22px; height: 24px; }
+  body.touch-mode .rangebar .playhead { top: 2px; width: 8px; height: 60px; }
+  body.touch-mode .rangebar .thumb-label {
+    top: calc(100% + 4px); font-size: 0.9rem; padding: 0.12rem 0.5rem;
+  }
+  body.touch-mode .touch-hint-bar { margin-top: 26px; gap: 0.25rem; }
+  body.touch-mode .brace-graphic { height: 8px; border-width: 2px; border-radius: 0 0 8px 8px; }
+  body.touch-mode .brace-graphic::after {
+    border-left-width: 6px; border-right-width: 6px; border-top-width: 9px; bottom: -8px;
+  }
+  body.touch-mode .touch-hint { font-size: 1rem; }
+}

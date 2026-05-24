@@ -29,8 +29,8 @@
     <span class="ts" id="timeTs">--</span>
   </div>
 </div>
-<script src="/static/playback.js"></script>
-<script src="/static/controller.js"></script>
+<script src="/static/js/lib/playback.js"></script>
+<script src="/static/js/lib/controller.js"></script>
 <script>
 const SP = window.SkyPlayback;
 const { imgUrl: _imgUrl, readableTs, describePartOfDay, PreloadCache } = SP;
@@ -119,7 +119,7 @@ document.addEventListener('keydown', (e) => {
   setInterval(async () => { await loadSunTimes(); await loadFrames(); }, 30000);
 })();
 </script>
-<script src="/static/admin-keypad.js"></script>
-<script src="/static/hard-refresh.js"></script>
+<script src="/static/js/lib/admin-keypad.js"></script>
+<script src="/static/js/lib/hard-refresh.js"></script>
 </body>
 </html>
