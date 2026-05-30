@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -133,7 +134,7 @@ def process_camera(cam, is_first, max_age_days, max_size_gb, do_prune):
                 name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S.jpg")
                 dest = target / name
                 os.replace(temp, dest)
-                last.write_bytes(dest.read_bytes())
+                shutil.copy2(dest, last)
                 print(f"[{datetime.now()}] [{label}] saved {name}", flush=True)
             elif temp.exists():
                 temp.unlink()
