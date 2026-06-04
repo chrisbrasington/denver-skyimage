@@ -9,6 +9,11 @@ services:
       - ./config.yaml:/config/config.yaml:ro,z
       - ./cameras.json:/config/cameras.json:ro,z
       - ./downloaded_images:/data/images:z
+    labels:
+      homepage.group: Apps
+      homepage.name: Denver Skyimage (capture)
+      homepage.icon: mdi-weather-night
+      homepage.description: Captures images
 
   web:
     build: ./web
@@ -25,6 +30,12 @@ services:
       - ./events:/data/events:z
       - ./videos:/data/videos:z
       - ${ENGINE_SOCK_HOST}:${ENGINE_SOCK_CONTAINER}:ro
+    labels:
+      homepage.group: Apps
+      homepage.name: Denver Skyimage
+      homepage.icon: mdi-weather-sunset
+      homepage.href: https://skyimage.home.chrisincode.com
+      homepage.description: Sky timelapse
 
   videogen:
     build: ./videogen
@@ -34,3 +45,8 @@ services:
       - ./cameras.json:/config/cameras.json:ro,z
       - ./downloaded_images:/data/images:ro,z
       - ./videos:/data/videos:z
+    labels:
+      homepage.group: Apps
+      homepage.name: Denver Skyimage (video)
+      homepage.icon: mdi-video-image
+      homepage.description: Captures videos
