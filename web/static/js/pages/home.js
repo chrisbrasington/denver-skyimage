@@ -378,6 +378,13 @@
     });
   }
 
+  // When admin is unlocked, show all chrome immediately and skip the PIN flow
+  // (corner-hold, keyboard shortcut, /admin auto-open).
+  if (ctx.adminLocked === false) {
+    revealAdmin();
+    return;
+  }
+
   function startHold() {
     if (holdTimer || keypadOpen) return;
     holdTimer = setTimeout(() => { holdTimer = null; openKeypad(); }, HOLD_MS);

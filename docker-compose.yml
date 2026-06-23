@@ -21,6 +21,8 @@ services:
     restart: unless-stopped
     ports:
       - "${APP_PORT:-8000}:8000"
+    environment:
+      - ADMIN_LOCKED=${adminLocked:-true}
     security_opt:
       - label=disable
     volumes:

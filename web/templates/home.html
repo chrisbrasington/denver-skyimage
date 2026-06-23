@@ -52,8 +52,9 @@
 {% block scripts %}
 <script>
   window.__SKY = {
-    cameras:   {{ cameras_public | tojson }},
-    autoAdmin: {{ auto_admin | tojson }},
+    cameras:     {{ cameras_public | tojson }},
+    autoAdmin:   {{ auto_admin | tojson }},
+    adminLocked: {{ admin_locked | tojson }},
   };
 </script>
 <script src="/static/js/lib/admin-keypad.js"></script>

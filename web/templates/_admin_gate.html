@@ -1,5 +1,8 @@
 {# Admin keypad gate: shown on first paint, kicks back to /home on fail/timeout.
    Included by index, live, browse, events, status. home.html has its own
-   richer gate logic (corner-touch detection) inlined via pages/home.js. #}
+   richer gate logic (corner-touch detection) inlined via pages/home.js.
+   Skipped entirely when admin_locked is false (ADMIN_LOCKED=false). #}
+{% if admin_locked %}
 <script src="/static/js/lib/admin-keypad.js"></script>
 <script src="/static/js/lib/admin-gate.js"></script>
+{% endif %}

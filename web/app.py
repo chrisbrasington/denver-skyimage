@@ -37,6 +37,11 @@ DENVER = LocationInfo("Denver", "USA", "America/Denver", 39.7392, -104.9903)
 UTC_TZ = ZoneInfo("UTC")
 LOCAL_TZ = ZoneInfo("America/Denver")
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+# When true (or unset), require the admin PIN: gate /admin and /status and hide
+# admin-only buttons on the home page. When ADMIN_LOCKED=false, show everything
+# with no PIN. Exposed to every template as `admin_locked`.
+ADMIN_LOCKED = os.environ.get("ADMIN_LOCKED", "true").strip().lower() != "false"
+TEMPLATES.env.globals["admin_locked"] = ADMIN_LOCKED
 TIMESTAMP_RE = re.compile(r"^(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})\.jpg$")
 
 
