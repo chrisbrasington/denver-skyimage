@@ -751,6 +751,7 @@ def delete_image(name: str, camera: str | None = None, cam: str | None = None):
         p.unlink()
     except OSError as e:
         raise HTTPException(500, f"unlink failed: {e}")
+    thumb_path_for(p).unlink(missing_ok=True)
     with _frame_cache_lock:
         _frame_cache.pop(str(p), None)
     return {"deleted": name}
@@ -1033,6 +1034,7 @@ async def api_images_delete_day(req: Request):
         p = d / name
         try:
             p.unlink()
+            thumb_path_for(p).unlink(missing_ok=True)
             with _frame_cache_lock:
                 _frame_cache.pop(str(p), None)
             deleted += 1

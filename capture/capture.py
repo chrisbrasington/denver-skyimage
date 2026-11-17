@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import time
 from datetime import datetime, timedelta
 from io import BytesIO
@@ -15,6 +16,8 @@ CONFIG_PATH = os.environ.get("CONFIG_PATH", "/config/config.yaml")
 CAMERAS_PATH = os.environ.get("CAMERAS_PATH", "/config/cameras.json")
 IMAGE_DIR = Path(os.environ.get("IMAGE_DIR", "/data/images"))
 TIMESTAMP_RE = re.compile(r"^(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})\.jpg$")
+THUMB_DIRNAME = ".thumbs"  # written by web/app.py ensure_thumb()
+LEGACY_THUMB_DIRNAME = "thumbs"
 
 
 def load_config():
@@ -80,6 +83,52 @@ def list_timestamped(target_dir):
     return files
 
 
+def thumb_path_for(p):
+    """Must match web/app.py thumb_path_for()."""
+    return p.parent / THUMB_DIRNAME / p.name
+
+
+def remove_image(p):
+    """Delete an image and its cached thumbnail (if any)."""
+    p.unlink()
+    thumb_path_for(p).unlink(missing_ok=True)
+
+
+def cleanup_orphans(target_dir, label):
+    """Remove thumbnails whose source image is gone, plus temp files left by interrupted writes."""
+    removed = 0
+    thumbs = target_dir / THUMB_DIRNAME
+    if thumbs.is_dir():
+        for t in thumbs.iterdir():
+            if not t.is_file():
+                continue
+            # Stray "<name>.jpg.tmp.<pid>.<uuid>" from an interrupted thumb write, or a thumb with no image.
+            if ".tmp." in t.name or not (target_dir / t.name).exists():
+                try:
+                    t.unlink()
+                    removed += 1
+                except OSError as e:
+                    print(f"unlink fail {t}: {e}", flush=True)
+    temp = target_dir / ".temp.jpg"
+    if temp.exists():
+        temp.unlink(missing_ok=True)
+        removed += 1
+    if removed:
+        print(f"[{datetime.now()}] [{label}] removed {removed} orphaned thumbs/temp files", flush=True)
+
+
+def cleanup_legacy(camera_names):
+    """Remove the old non-hidden thumbs/ folder that earlier versions wrote; nothing uses it now."""
+    legacy = IMAGE_DIR / LEGACY_THUMB_DIRNAME
+    if LEGACY_THUMB_DIRNAME in camera_names or not legacy.is_dir():
+        return
+    try:
+        shutil.rmtree(legacy)
+        print(f"[{datetime.now()}] removed legacy {legacy}", flush=True)
+    except OSError as e:
+        print(f"legacy cleanup fail {legacy}: {e}", flush=True)
+
+
 def prune(target_dir, max_age_days, max_size_gb, label):
     files = list_timestamped(target_dir)
     cutoff = datetime.now() - timedelta(days=max_age_days)
@@ -87,7 +136,7 @@ def prune(target_dir, max_age_days, max_size_gb, label):
     for ts, p in files:
         if ts < cutoff:
             try:
-                p.unlink()
+                remove_image(p)
                 removed_age += 1
             except OSError as e:
                 print(f"unlink fail {p}: {e}", flush=True)
@@ -103,7 +152,7 @@ def prune(target_dir, max_age_days, max_size_gb, label):
         ts, p = files[i]
         size = p.stat().st_size
         try:
-            p.unlink()
+            remove_image(p)
             total -= size
             removed_size += 1
         except OSError as e:
@@ -159,6 +208,14 @@ def main():
         print("no cameras configured", flush=True)
         return
     print(f"start watcher cameras={[c['name'] for c in cameras]} interval={interval}s age={max_age_days}d size={max_size_gb}GB", flush=True)
+
+    # Startup sweep: apply retention first, then drop thumbs/temp files left without a source image.
+    cleanup_legacy({c["name"] for c in cameras})
+    for i, cam in enumerate(cameras):
+        target = camera_dir(cam, i == 0)
+        if target.is_dir():
+            prune(target, max_age_days, max_size_gb, cam["name"])
+            cleanup_orphans(target, cam["name"])
 
     prune_counter = 0
     last_hashes = {}
