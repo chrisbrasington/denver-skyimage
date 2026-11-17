@@ -2,9 +2,9 @@ import hashlib
 import json
 import os
 import re
-import shutil
 import time
 from datetime import datetime, timedelta
+from io import BytesIO
 from pathlib import Path
 
 import requests
@@ -31,24 +31,25 @@ def camera_dir(cam, is_first):
     return IMAGE_DIR if is_first else IMAGE_DIR / cam["name"]
 
 
-def download(url, path):
+SESSION = requests.Session()
+
+
+def download(url):
     try:
-        r = requests.get(url, timeout=10)
+        r = SESSION.get(url, timeout=10)
         r.raise_for_status()
-        path.write_bytes(r.content)
-        return True
+        return r.content
     except Exception as e:
         print(f"[{datetime.now()}] download failed: {e}", flush=True)
-        return False
+        return None
 
 
-def looks_corrupt(path, white_threshold=240, ratio=0.9):
+def looks_corrupt(data, white_threshold=240, ratio=0.9):
     try:
-        with Image.open(path) as im:
+        with Image.open(BytesIO(data)) as im:
             im.load()
-            rgb = im.convert("RGB")
-            w, h = rgb.size
-            row = [rgb.getpixel((x, h - 1)) for x in range(w)]
+            w, h = im.size
+            row = list(im.crop((0, h - 1, w, h)).convert("RGB").getdata())
     except Exception as e:
         print(f"[{datetime.now()}] image unreadable, skipping: {e}", flush=True)
         return True
@@ -56,10 +57,8 @@ def looks_corrupt(path, white_threshold=240, ratio=0.9):
     return white / len(row) >= ratio
 
 
-def sha256(path):
-    h = hashlib.sha256()
-    h.update(path.read_bytes())
-    return h.hexdigest()
+def sha256(data):
+    return hashlib.sha256(data).hexdigest()
 
 
 def list_timestamped(target_dir):
@@ -114,30 +113,35 @@ def prune(target_dir, max_age_days, max_size_gb, label):
         print(f"[{datetime.now()}] [{label}] pruned {removed_size} by size", flush=True)
 
 
-def process_camera(cam, is_first, max_age_days, max_size_gb, do_prune):
+def initial_hash(target_dir):
+    """Seed the in-memory hash from the newest saved frame so a restart doesn't re-save a duplicate."""
+    stale = target_dir / ".last.jpg"  # no longer used; hash is kept in memory
+    if stale.exists():
+        stale.unlink()
+    files = list_timestamped(target_dir)
+    return sha256(files[-1][1].read_bytes()) if files else None
+
+
+def process_camera(cam, is_first, max_age_days, max_size_gb, do_prune, last_hashes):
     target = camera_dir(cam, is_first)
     target.mkdir(parents=True, exist_ok=True)
-    temp = target / ".temp.jpg"
-    last = target / ".last.jpg"
-    url = cam["url"]
     label = cam["name"]
+    if label not in last_hashes:
+        last_hashes[label] = initial_hash(target)
 
-    if download(url, temp):
-        if looks_corrupt(temp):
+    data = download(cam["url"])
+    if data is not None:
+        if looks_corrupt(data):
             print(f"[{datetime.now()}] [{label}] corrupt/partial, skip", flush=True)
-            if temp.exists():
-                temp.unlink()
         else:
-            new_hash = sha256(temp)
-            old_hash = sha256(last) if last.exists() else None
-            if new_hash != old_hash:
+            new_hash = sha256(data)
+            if new_hash != last_hashes[label]:
                 name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S.jpg")
-                dest = target / name
-                os.replace(temp, dest)
-                shutil.copy2(dest, last)
+                temp = target / ".temp.jpg"
+                temp.write_bytes(data)
+                os.replace(temp, target / name)  # atomic so web never sees a partial file
+                last_hashes[label] = new_hash
                 print(f"[{datetime.now()}] [{label}] saved {name}", flush=True)
-            elif temp.exists():
-                temp.unlink()
 
     if do_prune:
         prune(target, max_age_days, max_size_gb, label)
@@ -157,10 +161,11 @@ def main():
     print(f"start watcher cameras={[c['name'] for c in cameras]} interval={interval}s age={max_age_days}d size={max_size_gb}GB", flush=True)
 
     prune_counter = 0
+    last_hashes = {}
     while True:
         do_prune = prune_counter >= 10
         for i, cam in enumerate(cameras):
-            process_camera(cam, i == 0, max_age_days, max_size_gb, do_prune)
+            process_camera(cam, i == 0, max_age_days, max_size_gb, do_prune, last_hashes)
         prune_counter = 0 if do_prune else prune_counter + 1
         time.sleep(interval)
 

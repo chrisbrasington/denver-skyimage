@@ -5,6 +5,7 @@ services:
     build: ./capture
     image: valhalla:5000/denver-skyimage-capture:latest
     restart: unless-stopped
+    mem_limit: 256m  # process uses ~55MB peak; cap stops page cache from inflating reported usage
     volumes:
       - ./config.yaml:/config/config.yaml:ro,z
       - ./cameras.json:/config/cameras.json:ro,z
@@ -31,7 +32,7 @@ services:
       - ./downloaded_images:/data/images:z
       - ./events:/data/events:z
       - ./videos:/data/videos:z
-      - ${ENGINE_SOCK_HOST}:${ENGINE_SOCK_CONTAINER}:ro
+      - ${ENGINE_SOCK_HOST:-/run/user/1000/podman/podman.sock}:${ENGINE_SOCK_CONTAINER:-/var/run/podman.sock}:ro
     labels:
       homepage.group: Apps
       homepage.name: Denver Skyimage
