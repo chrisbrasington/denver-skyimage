@@ -3,7 +3,7 @@ name: denver-skyimage
 services:
   capture:
     build: ./capture
-    image: registry.home.chrisincode.com/denver-skyimage-capture:lates
+    image: valhalla:5000/denver-skyimage-capture:latest
     restart: unless-stopped
     mem_limit: 256m  # process uses ~55MB peak; cap stops page cache from inflating reported usage
     volumes:
@@ -18,7 +18,7 @@ services:
 
   web:
     build: ./web
-    image: registry.home.chrisincode.com/denver-skyimage-web:latest
+    image: valhalla:5000/denver-skyimage-web:latest
     restart: unless-stopped
     ports:
       - "${APP_PORT:-8000}:8000"
@@ -42,7 +42,7 @@ services:
 
   videogen:
     build: ./videogen
-    image: registry.home.chrisincode.com/denver-skyimage-videogen:latest
+    image: valhalla:5000/denver-skyimage-videogen:latest
     restart: unless-stopped
     volumes:
       - ./cameras.json:/config/cameras.json:ro,z
